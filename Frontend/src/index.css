@@ -1,0 +1,507 @@
+:root {
+  /* Motion system variables */
+  --motion-duration: 0.3s;
+  --motion-distance: 8px;
+
+  /* Theme variables - Light theme */
+  --app-bg: #ffffff;
+  --app-surface: #f8f9fa;
+  --app-surface-variant: #e9ecef;
+  --app-border: #dee2e6;
+  --app-text: #212529;
+  --app-text-muted: #6c757d;
+  --app-primary: #0d6efd;
+  --app-success: #198754;
+  --app-danger: #dc3545;
+  --app-warning: #ffc107;
+  --app-info: #0dcaf0;
+  --app-shadow: rgba(0, 0, 0, 0.1);
+  --app-shadow-lg: rgba(0, 0, 0, 0.15);
+  --app-navbar-bg: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  --app-card-bg: #ffffff;
+  --app-react-flow-bg: #fafafa;
+
+  /* Loading overlays */
+  --app-loading-overlay: rgba(255, 255, 255, 0.9);
+  --app-loading-backdrop: rgba(255, 255, 255, 0.8);
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --app-bg: #212529;
+  --app-surface: #343a40;
+  --app-surface-variant: #495057;
+  --app-border: #495057;
+  --app-text: #f8f9fa;
+  --app-text-muted: #adb5bd;
+  --app-primary: #6ea8fe;
+  --app-success: #75b798;
+  --app-danger: #ea868f;
+  --app-warning: #ffda6a;
+  --app-info: #6edff6;
+  --app-shadow: rgba(0, 0, 0, 0.3);
+  --app-shadow-lg: rgba(0, 0, 0, 0.5);
+  --app-navbar-bg: linear-gradient(135deg, #343a40 0%, #495057 100%);
+  --app-card-bg: #2d3436;
+  --app-react-flow-bg: #1a1d20;
+
+  /* Loading overlays - dark theme */
+  --app-loading-overlay: rgba(33, 37, 41, 0.9);
+  --app-loading-backdrop: rgba(33, 37, 41, 0.8);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: sans-serif;
+  background-color: var(--app-bg);
+  color: var(--app-text);
+}
+
+.react-flow__node {
+  z-index: -1 !important;
+}
+
+/* RouterNode dropdown - ensure it appears above node selection borders */
+.router-dropdown {
+  position: relative !important;
+  z-index: 150 !important;
+}
+
+/* Enhanced focus state for router dropdown */
+.router-dropdown:focus {
+  border-color: rgba(var(--bs-warning-rgb), 0.7) !important;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.15),
+    0 0 0 3px var(--bs-warning-bg-subtle) !important;
+  outline: none !important;
+}
+
+/* Enhanced Edge Styling */
+.react-flow__edge {
+  transition: all 0.2s ease;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 2px;
+  filter: drop-shadow(0 0 2px var(--app-shadow));
+}
+
+/* Selected edge z-index */
+.react-flow__edge.selected {
+  z-index: 1000 !important;
+}
+
+/* Edge delete button z-index */
+.react-flow__edge-button {
+  z-index: 10000 !important;
+}
+
+/* Edge Delete Button Hover Effects */
+.react-flow__edge button {
+  transition: opacity 0.2s ease !important;
+}
+
+.react-flow__edge button:hover {
+  opacity: 0.8 !important;
+}
+
+/* App Container Architecture */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Enhanced Navbar Styling */
+.flow-navbar {
+  background: var(--app-navbar-bg);
+  border-bottom: 1px solid var(--app-border);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 2px 8px var(--app-shadow);
+}
+
+.navbar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.navbar-brand-section {
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+  gap: 0.75rem;
+}
+
+.brand-icon {
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 8px;
+  box-shadow: var(--motion-shadow-base);
+  margin-right: 0.75rem;
+}
+
+.brand-text h5 {
+  color: var(--app-primary);
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.brand-text small {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.navbar-procedure-section {
+  display: flex;
+  align-items: center;
+  margin-left: 2rem;
+  padding-left: 2rem;
+  border-left: 1px solid var(--app-border);
+  flex-shrink: 0;
+}
+
+.procedure-selector-box {
+  width: 300px;
+  transition: width 0.3s ease;
+}
+
+.navbar-center-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.action-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.action-group-label {
+  font-size: 0.75rem;
+  color: var(--app-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-btn {
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 96px;
+  height: 32px;
+  justify-content: center;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.action-btn i {
+  font-size: 0.9rem;
+  margin-right: 0.25rem;
+}
+
+.btn-text {
+  font-size: 0.8rem;
+}
+
+.navbar-view-switcher {
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.view-btn {
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 96px;
+  height: 32px;
+  justify-content: center;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.action-btn .spinner-border {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.action-btn .d-flex.align-items-center {
+  width: 100%;
+  justify-content: center;
+}
+
+.view-btn i {
+  font-size: 0.9rem;
+  margin-right: 0.25rem;
+}
+
+.btn-info .bi-lightning-charge-fill {
+  color: white !important;
+}
+
+@media (max-width: 1300px) {
+  .navbar-procedure-section {
+    margin-left: 1rem;
+    padding-left: 1rem;
+  }
+
+  .procedure-selector-box {
+    width: 250px;
+  }
+
+  .btn-text {
+    display: none;
+  }
+
+  .action-btn,
+  .view-btn {
+    min-width: 40px;
+  }
+
+  .action-btn i,
+  .view-btn i {
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 1200px) {
+  .navbar-brand-section {
+    min-width: auto;
+  }
+
+  .brand-text {
+    display: none;
+  }
+
+  .navbar-view-switcher {
+    min-width: auto;
+  }
+
+  .navbar-center-actions {
+    gap: 1rem;
+  }
+
+  .action-group {
+    gap: 0.25rem;
+  }
+
+  .action-group-label {
+    font-size: 0.7rem;
+  }
+
+  .action-btn {
+    min-width: 84px;
+    padding: 0.4rem 0.6rem;
+    height: 30px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .navbar-procedure-section {
+    display: none;
+  }
+
+  .view-btn .btn-text {
+    display: none;
+  }
+
+  .view-btn {
+    min-width: 40px;
+  }
+
+  .view-btn i {
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-content {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .navbar-brand-section,
+  .navbar-view-switcher {
+    min-width: auto;
+  }
+
+  .navbar-center-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .action-group {
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+
+  .action-group-label {
+    display: none;
+  }
+}
+
+/* Custom Bootstrap overrides for better dark theme integration */
+[data-theme="dark"] .card {
+  background-color: var(--app-card-bg);
+  border-color: var(--app-border);
+}
+
+[data-theme="dark"] .dropdown-menu {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+[data-theme="dark"] .dropdown-item {
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background-color: var(--app-surface-variant);
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .modal-content {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+[data-theme="dark"] .modal-header {
+  border-bottom-color: var(--app-border);
+}
+
+[data-theme="dark"] .modal-footer {
+  border-top-color: var(--app-border);
+}
+
+/* React Flow Dark Theme */
+[data-theme="dark"] .react-flow__controls {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+[data-theme="dark"] .react-flow__controls button {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .react-flow__controls button:hover {
+  background-color: var(--app-surface-variant);
+}
+
+[data-theme="dark"] .react-flow__minimap {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+[data-theme="dark"] .react-flow__minimap-mask {
+  fill: var(--app-surface-variant);
+}
+
+[data-theme="dark"] .react-flow__minimap-node {
+  fill: var(--app-text-muted);
+  stroke: var(--app-border);
+}
+
+/* Additional Bootstrap class overrides for dark theme */
+[data-theme="dark"] .text-secondary {
+  color: var(--app-text-muted) !important;
+}
+
+[data-theme="dark"] .bg-light {
+  background-color: var(--app-surface) !important;
+}
+
+[data-theme="dark"] .bg-white {
+  background-color: var(--app-card-bg) !important;
+}
+
+[data-theme="dark"] .text-dark {
+  color: var(--app-text) !important;
+}
+
+[data-theme="dark"] .border {
+  border-color: var(--app-border) !important;
+}
+
+[data-theme="dark"] .form-control {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .form-control:focus {
+  background-color: var(--app-surface);
+  border-color: var(--app-primary);
+  color: var(--app-text);
+  box-shadow: var(--motion-shadow-focus);
+}
+
+[data-theme="dark"] .form-select {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .form-select:focus {
+  background-color: var(--app-surface);
+  border-color: var(--app-primary);
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .list-group-item {
+  background-color: var(--app-card-bg);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .table {
+  color: var(--app-text);
+}
+
+[data-theme="dark"] .table th,
+[data-theme="dark"] .table td {
+  border-color: var(--app-border);
+}
+
+/* Dark mode dog meme - convert to white with reduced opacity */
+[data-theme="dark"] img[src="/LabLineArt.png"] {
+  filter: brightness(0) invert(1);
+  opacity: 0.5;
+}

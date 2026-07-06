@@ -1,0 +1,40 @@
+query GetDependencyEdges(
+    $where: DependencyEdgeFilterInput
+    $order: [DependencyEdgeSortInput!]
+) {
+    dependencyEdges(where: $where, order: $order) {
+        ...DependencyEdgeFields
+    }
+}
+
+query GetDependencyEdgeById($id: UUID!) {
+    dependencyEdgeById(id: $id) {
+        ...DependencyEdgeFields
+    }
+}
+
+mutation CreateDependencyEdge($input: CreateDependencyEdgeInput!) {
+    createDependencyEdge(input: $input) {
+        dependencyEdge {
+            ...DependencyEdgeFields
+        }
+    }
+}
+
+mutation UpdateDependencyEdge($input: UpdateDependencyEdgeInput!) {
+    updateDependencyEdge(input: $input) {
+        boolean # Similar to UpdateNode, adjust if needed
+    }
+}
+
+mutation DeleteDependencyEdge($input: DeleteDependencyEdgeInput!) {
+    deleteDependencyEdge(input: $input) {
+        boolean
+    }
+}
+
+subscription OnDependencyEdgesChanged {
+    dependencyEdgesChanged {
+        ...DependencyEdgeFields
+    }
+}

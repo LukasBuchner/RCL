@@ -1,0 +1,11 @@
+﻿query GetSchedulingConfiguration {
+    schedulingConfiguration {
+        timeToPixelScale
+        baseYOffset
+        siblingSpacing
+        containerTopPadding
+        containerBottomPadding
+        baseHeight
+        routerDropdownHeight
+    }
+}

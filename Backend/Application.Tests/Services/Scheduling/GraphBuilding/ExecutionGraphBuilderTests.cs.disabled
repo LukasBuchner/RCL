@@ -1,0 +1,732 @@
+﻿using FHOOE.Freydis.Agents;
+using FHOOE.Freydis.Application.Services.Procedure.Orchestration.GraphBuilding;
+using FHOOE.Freydis.Application.Services.Procedure.Orchestration.GraphBuilding.Utils;
+using FHOOE.Freydis.Application.Services.Procedure.Orchestration.SkillExecutions;
+using FHOOE.Freydis.Application.Services.Common;
+using FHOOE.Freydis.Domain.Entities.Procedure;
+using FHOOE.Freydis.Domain.Entities.Common;
+using FHOOE.Freydis.Scheduling.Core;
+using Microsoft.Extensions.Logging;
+using Moq;
+using Task = System.Threading.Tasks.Task;
+
+namespace FHOOE.Freydis.Application.Tests.Services.Scheduling.GraphBuilding;
+
+/// <summary>
+///     Unit tests for <see cref="ExecutionGraphBuilder" />,
+///     verifying orchestration, mapping and dependency wiring.
+/// </summary>
+public class ExecutionGraphBuilderTests
+{
+    /// <summary>
+    ///     When there are no <see cref="SkillExecutionNode" />s,
+    ///     <see cref="ExecutionGraphBuilder.BuildAsync" /> returns <c>null</c> and logs appropriately.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_WithNoSkillNodes_ReturnsNull_AndLogs()
+    {
+        // Arrange
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+        var nodeAgentMapper = new NodeAgentMapper(
+            [],
+            new Mock<ILogger<NodeAgentMapper>>().Object,
+            mockQueryService.Object);
+        var mockLogger = new Mock<ILogger<AgentCapabilityAnalyzer>>();
+        var capabilityAnalyzer = new AgentCapabilityAnalyzer(mockLogger.Object);
+        var edgeTypeMapper = new EdgeTypeMapper();
+
+        // Logger mock
+        var loggerMock = new Mock<ILogger<ExecutionGraphBuilder>>();
+        var builder = new ExecutionGraphBuilder(
+            loggerMock.Object,
+            nodeAgentMapper,
+            capabilityAnalyzer,
+            edgeTypeMapper);
+
+        var procedureNodes = new List<Node>
+        {
+            new TaskNode
+            {
+                Id = Guid.NewGuid(),
+                Position = new NodePosition { X = 0, Y = 0 },
+                Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task
+                {
+                    Name = "Irrelevant",
+                    StartTime = 0,
+                    Duration = 1
+                }
+            }
+        };
+        var procedureEdges = Array.Empty<DependencyEdge>();
+
+        // Act
+        var graph = await builder.BuildAsync(procedureNodes, procedureEdges);
+
+        // Assert
+        Assert.Null(graph);
+
+        // Verify logging
+        loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) =>
+                    v.ToString()!.Contains("Starting execution graph build with 1 nodes and 0 edges")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()!),
+            Times.Once);
+        loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("No nodes could be mapped to executable skills")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()!),
+            Times.Once);
+    }
+
+
+    /// <summary>
+    ///     Supplying invalid handles in the dependency edge causes
+    ///     <see cref="ArgumentOutOfRangeException" /> to bubble up.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_InvalidHandles_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange the same as non‐adaptive, but bad handles
+        var skill = new Skill
+        {
+            Id = Guid.NewGuid(),
+            Name = "Bad",
+            Description = "",
+            Properties = [],
+            AgentIds = []
+        };
+        var agent = new Agent
+        { Id = Guid.NewGuid(), Name = "C", SkillIds = new List<Guid>(), RepresentativeColor = "Red" };
+        var mockA = new Mock<IRuntimeAgent>();
+        mockA.SetupGet(a => a.Id).Returns(agent.Id);
+        mockA.Setup(a => a.CanExecuteAdaptivelyAsync(skill, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        mockA.Setup(a => a.GetExecutionEstimateAsync(skill, It.IsAny<CancellationToken>())).ReturnsAsync(
+            new SkillExecutionEstimate
+            {
+                Skill = skill,
+                AgentId = agent.Id,
+                CanExecuteAdaptively = false,
+                EstimatedNominalDuration = 1.0
+            });
+
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+        mockQueryService.Setup(q => q.GetSkillByIdAsync(skill.Id)).ReturnsAsync(skill);
+        mockQueryService.Setup(q => q.GetAgentByIdAsync(agent.Id)).ReturnsAsync(agent);
+        var nodeAgentMapper = new NodeAgentMapper(
+            [mockA.Object],
+            new Mock<ILogger<NodeAgentMapper>>().Object,
+            mockQueryService.Object);
+        var builder = new ExecutionGraphBuilder(
+            new Mock<ILogger<ExecutionGraphBuilder>>().Object,
+            nodeAgentMapper,
+            new AgentCapabilityAnalyzer(new Mock<ILogger<AgentCapabilityAnalyzer>>().Object),
+            new EdgeTypeMapper());
+
+        var sen = new SkillExecutionNode
+        {
+            Id = Guid.NewGuid(),
+            Position = new NodePosition { X = 3, Y = 3 },
+            SkillExecutionTask = new SkillExecutionTask
+            {
+                Name = "ExecBad",
+                StartTime = 0,
+                Duration = 1,
+                Skill = skill,
+                AgentId = agent.Id
+            }
+        };
+        var badEdge = new DependencyEdge
+        {
+            Id = Guid.NewGuid(),
+            SourceId = sen.Id,
+            TargetId = sen.Id,
+            SourceHandle = "foo",
+            TargetHandle = "bar"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            builder.BuildAsync([sen], [badEdge]));
+    }
+
+    [Fact]
+    public async Task BuildAsync_SingleSkillNode_ProducesSingleExecution()
+    {
+        // Arrange
+        var skillId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
+
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "TestSkill",
+            Description = "desc",
+            Properties = [],
+            AgentIds = []
+        };
+
+        // Mock IAgent so that it advertises the skill and returns a non‐adaptive estimate.
+        var mockAgent = new Mock<IRuntimeAgent>();
+        mockAgent.SetupGet(a => a.Id).Returns(agentId);
+        mockAgent
+            .Setup(a => a.GetAvailableSkillsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill> { skill });
+        mockAgent
+            .Setup(a => a.CanExecuteAdaptivelyAsync(skill, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        mockAgent
+            .Setup(a => a.GetExecutionEstimateAsync(skill, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SkillExecutionEstimate
+            {
+                Skill = skill,
+                AgentId = agentId,
+                CanExecuteAdaptively = false,
+                EstimatedNominalDuration = 5.0
+            });
+
+        // Real NodeAgentMapper + AgentCapabilityAnalyzer, mocked edge‐type mapper (unused here)
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+
+        var agent = new Agent { Id = agentId, Name = "TestAgent", SkillIds = [], RepresentativeColor = "Blue" };
+        mockQueryService.Setup(q => q.GetAgentByIdAsync(agentId)).ReturnsAsync(agent);
+        var nodeAgentMapper = new NodeAgentMapper(
+            [mockAgent.Object],
+            new Mock<ILogger<NodeAgentMapper>>().Object,
+            mockQueryService.Object);
+        var mockLogger = new Mock<ILogger<AgentCapabilityAnalyzer>>();
+        var capabilityAnalyzer = new AgentCapabilityAnalyzer(mockLogger.Object);
+        var edgeTypeMapper = new Mock<IEdgeTypeMapper>().Object;
+
+        var builder = new ExecutionGraphBuilder(
+            new Mock<ILogger<ExecutionGraphBuilder>>().Object,
+            nodeAgentMapper,
+            capabilityAnalyzer,
+            edgeTypeMapper);
+
+        // One SkillExecutionNode referencing our skill and personal digital assistant
+        var nodeId = Guid.NewGuid();
+        var node = new SkillExecutionNode
+        {
+            Id = nodeId,
+            Position = new NodePosition { X = 1, Y = 2 },
+            SkillExecutionTask = new SkillExecutionTask
+            {
+                Name = "DoTest",
+                StartTime = 0,
+                Duration = 1,
+                Skill = skill,
+                AgentId = agentId
+            }
+        };
+
+        // Act
+        var graph = await builder.BuildAsync(
+            [node],
+            []);
+
+        // Assert
+        Assert.NotNull(graph);
+        Assert.Single(graph.SkillExecutions);
+        Assert.Empty(graph.Dependencies);
+
+        // The single planned execution must have the same node ID
+        Assert.Equal(nodeId, graph.SkillExecutions[0].Id);
+    }
+
+    /// <summary>
+    ///     Integration test: when two SkillExecutionNodes are provided
+    ///     with a single DependencyEdge between them, BuildAsync
+    ///     produces a graph with two executions and that one
+    ///     dependency of the configured type.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_TwoSkillNodesWithEdge_ProducesDependency()
+    {
+        // Arrange
+        var skill = new Skill
+        {
+            Id = Guid.NewGuid(),
+            Name = "S1",
+            Description = "",
+            Properties = [],
+            AgentIds = []
+        };
+        var agentId = Guid.NewGuid();
+
+        // Mock agent to support non‐adaptive execution
+        var mockAgent = new Mock<IRuntimeAgent>();
+        mockAgent.SetupGet(a => a.Id).Returns(agentId);
+        mockAgent
+            .Setup(a => a.GetAvailableSkillsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Skill> { skill });
+        mockAgent
+            .Setup(a => a.CanExecuteAdaptivelyAsync(skill, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        mockAgent
+            .Setup(a => a.GetExecutionEstimateAsync(skill, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SkillExecutionEstimate
+            {
+                Skill = skill,
+                AgentId = agentId,
+                CanExecuteAdaptively = false,
+                EstimatedNominalDuration = 2.5
+            });
+
+        // A real mapper and analyser, but mock the edge‐type mapper to return a known type.
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+
+        var agent = new Agent { Id = agentId, Name = "TestAgent", SkillIds = [], RepresentativeColor = "Blue" };
+        mockQueryService.Setup(q => q.GetAgentByIdAsync(agentId)).ReturnsAsync(agent);
+        var nodeAgentMapper = new NodeAgentMapper(
+            [mockAgent.Object],
+            new Mock<ILogger<NodeAgentMapper>>().Object,
+            mockQueryService.Object);
+        var mockLogger = new Mock<ILogger<AgentCapabilityAnalyzer>>();
+        var capabilityAnalyzer = new AgentCapabilityAnalyzer(mockLogger.Object);
+        var edgeTypeMapperMock = new Mock<IEdgeTypeMapper>();
+        edgeTypeMapperMock
+            .Setup(m => m.Map(It.IsAny<DependencyEdge>()))
+            .Returns(DependencyType.FinishToStart);
+
+        var builder = new ExecutionGraphBuilder(
+            new Mock<ILogger<ExecutionGraphBuilder>>().Object,
+            nodeAgentMapper,
+            capabilityAnalyzer,
+            edgeTypeMapperMock.Object);
+
+        // Two nodes
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var node1 = new SkillExecutionNode
+        {
+            Id = id1,
+            Position = new NodePosition { X = 0, Y = 0 },
+            SkillExecutionTask = new SkillExecutionTask
+            {
+                Name = "First",
+                StartTime = 0,
+                Duration = 1,
+                Skill = skill,
+                AgentId = agentId
+            }
+        };
+        var node2 = new SkillExecutionNode
+        {
+            Id = id2,
+            Position = new NodePosition { X = 1, Y = 1 },
+            SkillExecutionTask = new SkillExecutionTask
+            {
+                Name = "Second",
+                StartTime = 0,
+                Duration = 1,
+                Skill = skill,
+                AgentId = agentId
+            }
+        };
+
+        // One dependency edge from node1 → node2
+        var edge = new DependencyEdge
+        {
+            Id = Guid.NewGuid(),
+            SourceId = id1,
+            TargetId = id2,
+            SourceHandle = "any",
+            TargetHandle = "any"
+        };
+
+        // Act
+        var graph = await builder.BuildAsync(
+            [node1, node2],
+            [edge]);
+
+        // Assert
+        Assert.NotNull(graph);
+        Assert.Equal(2, graph.SkillExecutions.Count);
+        Assert.Single(graph.Dependencies);
+
+        var dep = graph.Dependencies[0];
+        Assert.Equal(id1, dep.Source.Id);
+        Assert.Equal(id2, dep.Target.Id);
+        Assert.Equal(DependencyType.FinishToStart, dep.Type);
+    }
+
+    /// <summary>
+    ///     Integration test: multiple nodes with mixed adaptive/non-adaptive agents and varied edges produce the correct graph
+    ///     with proper types and counts.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_MultipleNodesMixedCapabilitiesAndEdges_ReturnsCorrectGraph()
+    {
+        // Arrange
+        // Skills and IDs
+        var idA = Guid.NewGuid();
+        var idB = Guid.NewGuid();
+        var idC = Guid.NewGuid();
+
+        var skillA = new Skill { Id = idA, Name = "A", Description = "", Properties = [], AgentIds = [] };
+        var skillB = new Skill { Id = idB, Name = "B", Description = "", Properties = [], AgentIds = [] };
+        var skillC = new Skill { Id = idC, Name = "C", Description = "", Properties = [], AgentIds = [] };
+
+        // Agents
+        var agentAdaptive = new Mock<IRuntimeAgent>();
+        agentAdaptive.SetupGet(a => a.Id).Returns(Guid.NewGuid());
+
+        var agentNonA1 = new Mock<IRuntimeAgent>();
+        agentNonA1.SetupGet(a => a.Id).Returns(Guid.NewGuid());
+
+        var agentNonA2 = new Mock<IRuntimeAgent>();
+        agentNonA2.SetupGet(a => a.Id).Returns(Guid.NewGuid());
+
+        // Planned executions
+        var plannedA = new Mock<IPlannedSkillExecution>();
+        plannedA.SetupGet(p => p.Id).Returns(idA);
+        var plannedB = new Mock<IPlannedSkillExecution>();
+        plannedB.SetupGet(p => p.Id).Returns(idB);
+        var plannedC = new Mock<IPlannedSkillExecution>();
+        plannedC.SetupGet(p => p.Id).Returns(idC);
+
+        var mapperMock = new Mock<INodeAgentMapper>();
+        mapperMock
+            .Setup(m => m.MapAsync(It.Is<Node>(n => n.Id == idA)))
+            .ReturnsAsync((skillA,
+                new Agent
+                {
+                    Id = agentAdaptive.Object.Id,
+                    Name = "Adv",
+                    SkillIds = new List<Guid>(),
+                    RepresentativeColor = ""
+                }, agentAdaptive.Object));
+        mapperMock
+            .Setup(m => m.MapAsync(It.Is<Node>(n => n.Id == idB)))
+            .ReturnsAsync((skillB,
+                new Agent
+                {
+                    Id = agentNonA1.Object.Id,
+                    Name = "Non1",
+                    SkillIds = new List<Guid>(),
+                    RepresentativeColor = ""
+                }, agentNonA1.Object));
+        mapperMock
+            .Setup(m => m.MapAsync(It.Is<Node>(n => n.Id == idC)))
+            .ReturnsAsync((skillC,
+                new Agent
+                {
+                    Id = agentNonA2.Object.Id,
+                    Name = "Non2",
+                    SkillIds = new List<Guid>(),
+                    RepresentativeColor = ""
+                }, agentNonA2.Object));
+
+        var analyzerMock = new Mock<ICapabilityAnalyzer>();
+        analyzerMock
+            .Setup(a => a.AnalyzeAsync(
+                idA,
+                skillA,
+                It.Is<Agent>(d => d.Id == agentAdaptive.Object.Id),
+                agentAdaptive.Object))
+            .ReturnsAsync(plannedA.Object);
+        analyzerMock
+            .Setup(a => a.AnalyzeAsync(
+                idB,
+                skillB,
+                It.Is<Agent>(d => d.Id == agentNonA1.Object.Id),
+                agentNonA1.Object))
+            .ReturnsAsync(plannedB.Object);
+        analyzerMock
+            .Setup(a => a.AnalyzeAsync(
+                idC,
+                skillC,
+                It.Is<Agent>(d => d.Id == agentNonA2.Object.Id),
+                agentNonA2.Object))
+            .ReturnsAsync(plannedC.Object);
+
+        // Nodes
+        var nodes = new List<Node>
+        {
+            new SkillExecutionNode
+            {
+                Id = idA, Position = new NodePosition { X = 0, Y = 0 },
+                SkillExecutionTask = new SkillExecutionTask
+                {
+                    Name = "A", StartTime = 0, Duration = 1,
+                    Skill = skillA,
+                    AgentId = agentAdaptive.Object.Id
+                }
+            },
+            new SkillExecutionNode
+            {
+                Id = idB, Position = new NodePosition { X = 1, Y = 1 },
+                SkillExecutionTask = new SkillExecutionTask
+                {
+                    Name = "B", StartTime = 0, Duration = 1,
+                    Skill = skillB,
+                    AgentId = agentNonA1.Object.Id
+                }
+            },
+            new SkillExecutionNode
+            {
+                Id = idC, Position = new NodePosition { X = 2, Y = 2 },
+                SkillExecutionTask = new SkillExecutionTask
+                {
+                    Name = "C", StartTime = 0, Duration = 1,
+                    Skill = skillC,
+                    AgentId = agentNonA2.Object.Id
+                }
+            }
+        };
+
+        // Edges
+        var edgeAb = new DependencyEdge
+        { Id = Guid.NewGuid(), SourceId = idA, TargetId = idB, SourceHandle = "left", TargetHandle = "right" };
+        var edgeBc = new DependencyEdge
+        { Id = Guid.NewGuid(), SourceId = idB, TargetId = idC, SourceHandle = "right", TargetHandle = "right" };
+        var edgeCa = new DependencyEdge
+        { Id = Guid.NewGuid(), SourceId = idC, TargetId = idA, SourceHandle = "left", TargetHandle = "left" };
+
+        // EdgeTypeMapper returns varied types
+        var edgeTypeMock = new Mock<IEdgeTypeMapper>();
+        edgeTypeMock.Setup(m => m.Map(edgeAb)).Returns(DependencyType.FinishToStart);
+        edgeTypeMock.Setup(m => m.Map(edgeBc)).Returns(DependencyType.StartToStart);
+        edgeTypeMock.Setup(m => m.Map(edgeCa)).Returns(DependencyType.FinishToFinish);
+
+        var builder = new ExecutionGraphBuilder(
+            new Mock<ILogger<ExecutionGraphBuilder>>().Object,
+            mapperMock.Object,
+            analyzerMock.Object,
+            edgeTypeMock.Object);
+
+        // Act
+        var graph = await builder.BuildAsync(nodes, [edgeAb, edgeBc, edgeCa]);
+
+        // Assert
+        Assert.NotNull(graph);
+        Assert.Equal(3, graph.SkillExecutions.Count);
+        Assert.Equal(3, graph.Dependencies.Count);
+
+        // Validate each dependency
+        var deps = graph.Dependencies;
+        Assert.Contains(deps, d => d.Source.Id == idA && d.Target.Id == idB && d.Type == DependencyType.FinishToStart);
+        Assert.Contains(deps, d => d.Source.Id == idB && d.Target.Id == idC && d.Type == DependencyType.StartToStart);
+        Assert.Contains(deps, d => d.Source.Id == idC && d.Target.Id == idA && d.Type == DependencyType.FinishToFinish);
+    }
+
+    /// <summary>
+    ///     When a TaskNode has two SkillExecutionNode children with a finish-to-start edge between Tasks,
+    ///     the builder propagates that dependency to both child skill executions.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_TaskEdgePropagatesToChildSkills()
+    {
+        // Arrange
+        var parentA = Guid.NewGuid();
+        var parentB = Guid.NewGuid();
+
+        // Create ONE agent that will be used by all skills in this test
+        var commonAgent = new Agent { Id = Guid.NewGuid(), Name = "A", SkillIds = [], RepresentativeColor = "" };
+
+        // Use a helper function or modify CreateSkillNode to accept an agent
+        var skillA1 = CreateSkillNode(Guid.NewGuid(), parentA, commonAgent);
+        var skillA2 = CreateSkillNode(Guid.NewGuid(), parentA, commonAgent);
+        var skillB1 = CreateSkillNode(Guid.NewGuid(), parentB, commonAgent);
+
+        // Update agent's SkillIds to include all created skills
+        commonAgent.SkillIds = [skillA1.SkillExecutionTask.Skill.Id, skillA2.SkillExecutionTask.Skill.Id, skillB1.SkillExecutionTask.Skill.Id];
+
+        // Define TaskNodes only for edge Ids and ParentIds
+        var taskNodeA = new TaskNode
+        {
+            Id = parentA,
+            Position = new NodePosition { X = 0, Y = 0 },
+            Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task { Name = "A", StartTime = 0, Duration = 1 }
+        };
+        var taskNodeB = new TaskNode
+        {
+            Id = parentB,
+            Position = new NodePosition { X = 1, Y = 1 },
+            Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task { Name = "B", StartTime = 0, Duration = 1 }
+        };
+
+        // Arrange mock agent to match the common agent's ID
+        var mockAgent = new Mock<IRuntimeAgent>();
+        mockAgent.SetupGet(a => a.Id).Returns(commonAgent.Id); // Now matches all skills
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+        var mapper = new NodeAgentMapper([mockAgent.Object], Mock.Of<ILogger<NodeAgentMapper>>(), mockQueryService.Object);
+
+        var analyzer = new Mock<ICapabilityAnalyzer>();
+        // Set up skill and agent lookups for the nodes
+        foreach (var node in new[] { skillA1, skillA2, skillB1 })
+        {
+            var skill = node.SkillExecutionTask.Skill;
+
+            mockQueryService.Setup(q => q.GetAgentByIdAsync(node.SkillExecutionTask.AgentId)).ReturnsAsync(commonAgent);
+
+            analyzer.Setup(a => a.AnalyzeAsync(node.Id, skill, commonAgent, mockAgent.Object))
+                .ReturnsAsync(Mock.Of<IPlannedSkillExecution>(p => p.Id == node.Id));
+        }
+
+        var edgeMapper = new EdgeTypeMapper();
+        var builder = new ExecutionGraphBuilder(
+            new Mock<ILogger<ExecutionGraphBuilder>>().Object, mapper, analyzer.Object, edgeMapper);
+
+        // One edge between parent tasks
+        var parentEdge = new DependencyEdge
+        {
+            Id = Guid.NewGuid(),
+            SourceId = parentA,
+            TargetId = parentB,
+            SourceHandle = "right",
+            TargetHandle = "left"
+        };
+
+        // Act
+        var graph = await builder.BuildAsync(
+            [taskNodeA, taskNodeB, skillA1, skillA2, skillB1],
+            [parentEdge]);
+
+        // Assert
+        Assert.NotNull(graph);
+        // Should produce edges: A1->B1 and A2->B1
+        Assert.Equal(2, graph.Dependencies.Count);
+        Assert.All(graph.Dependencies, dep => Assert.Equal(DependencyType.FinishToStart, dep.Type));
+        var sources = graph.Dependencies.Select(d => d.Source.Id).ToList();
+        var targets = graph.Dependencies.Select(d => d.Target.Id).ToList();
+        Assert.Contains(skillA1.Id, sources);
+        Assert.Contains(skillA2.Id, sources);
+        Assert.All(targets, t => Assert.Equal(skillB1.Id, t));
+    }
+
+    /// <summary>
+    ///     Edge case: a TaskNode with no SkillExecutionNode descendants should not produce dependencies.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_TaskWithNoSkillChildren_ProducesNoEdges()
+    {
+        // Arrange
+        var task1 = new TaskNode
+        {
+            Id = Guid.NewGuid(),
+            Position = new NodePosition { X = 0, Y = 0 },
+            Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task { Name = "T1", StartTime = 0, Duration = 1 }
+        };
+        var task2 = new TaskNode
+        {
+            Id = Guid.NewGuid(),
+            Position = new NodePosition { X = 1, Y = 1 },
+            Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task { Name = "T2", StartTime = 0, Duration = 1 }
+        };
+
+        var edge = new DependencyEdge
+        {
+            Id = Guid.NewGuid(),
+            SourceId = task1.Id,
+            TargetId = task2.Id,
+            SourceHandle = "left",
+            TargetHandle = "right"
+        };
+
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+        var builder = new ExecutionGraphBuilder(
+            new Mock<ILogger<ExecutionGraphBuilder>>().Object,
+            new NodeAgentMapper([], Mock.Of<ILogger<NodeAgentMapper>>(), mockQueryService.Object),
+            Mock.Of<ICapabilityAnalyzer>(),
+            new EdgeTypeMapper());
+
+        // Act
+        var graph = await builder.BuildAsync([task1, task2], [edge]);
+
+        // Assert
+        // No skill nodes, so BuildAsync returns null
+        Assert.Null(graph);
+    }
+
+    /// <summary>
+    ///     Deep nesting: grandparent -> parent -> skill child. Verify that an edge on the grandparent propagates through two
+    ///     levels.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_DeeplyNestedTaskEdges_PropagatesThroughLevels()
+    {
+        // Arrange
+        var grand = Guid.NewGuid();
+        var mid = Guid.NewGuid();
+        var leaf = Guid.NewGuid();
+
+        var agent = new Agent { Id = Guid.NewGuid(), Name = "A", SkillIds = [], RepresentativeColor = "" };
+
+
+        var grandNode = new TaskNode
+        {
+            Id = grand,
+            Position = new NodePosition { X = 0, Y = 0 },
+            Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task { Name = "G", StartTime = 0, Duration = 1 }
+        };
+        var midNode = new TaskNode
+        {
+            Id = mid,
+            ParentId = grand,
+            Position = new NodePosition { X = 1, Y = 1 },
+            Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task { Name = "M", StartTime = 0, Duration = 1 }
+        };
+        var skillLeaf = CreateSkillNode(leaf, mid, agent);
+
+        // Edge between grand -> some sibling task under which skill resides
+        var edge = new DependencyEdge
+        { Id = Guid.NewGuid(), SourceId = grand, TargetId = mid, SourceHandle = "right", TargetHandle = "left" };
+
+        // Mapper and analyzer
+        var mockAgent = new Mock<IRuntimeAgent>();
+        mockAgent.SetupGet(a => a.Id).Returns(skillLeaf.SkillExecutionTask.AgentId);
+        var mockQueryService = new Mock<IRclSharedQueryService>();
+        var skill = skillLeaf.SkillExecutionTask.Skill;
+        var leafAgent = new Agent { Id = skillLeaf.SkillExecutionTask.AgentId, Name = "TestAgent", SkillIds = [], RepresentativeColor = "" };
+
+        mockQueryService.Setup(q => q.GetAgentByIdAsync(skillLeaf.SkillExecutionTask.AgentId)).ReturnsAsync(leafAgent);
+
+        var mapper = new NodeAgentMapper([mockAgent.Object], Mock.Of<ILogger<NodeAgentMapper>>(), mockQueryService.Object);
+        var analyzer = new Mock<ICapabilityAnalyzer>();
+        analyzer.Setup(a => a.AnalyzeAsync(skillLeaf.Id, skill, leafAgent, mockAgent.Object))
+            .ReturnsAsync(Mock.Of<IPlannedSkillExecution>(p => p.Id == skillLeaf.Id));
+        var builder = new ExecutionGraphBuilder(new Mock<ILogger<ExecutionGraphBuilder>>().Object, mapper,
+            analyzer.Object, new EdgeTypeMapper());
+
+        // Act
+        var graph = await builder.BuildAsync(
+            [grandNode, midNode, skillLeaf],
+            [edge]);
+
+        // Assert
+        Assert.NotNull(graph);
+        Assert.Single(graph.Dependencies);
+        Assert.Equal(skillLeaf.Id, graph.Dependencies[0].Target.Id);
+        Assert.Equal(skillLeaf.Id, graph.Dependencies[0].Source.Id); // leaf of grand maps to itself
+    }
+
+    /// <summary>
+    ///     Helper to create a SkillExecutionNode with an Agent and Skill.
+    /// </summary>
+    private static SkillExecutionNode CreateSkillNode(Guid id, Guid parent, Agent agent)
+    {
+        var skill = new Skill { Id = Guid.NewGuid(), Name = "S", Description = "", Properties = [], AgentIds = [agent.Id] };
+        return new SkillExecutionNode
+        {
+            Id = id,
+            ParentId = parent,
+            Position = new NodePosition { X = 0, Y = 0 },
+            SkillExecutionTask = new SkillExecutionTask
+            {
+                Name = "Leaf",
+                StartTime = 0,
+                Duration = 1,
+                Skill = skill,
+                AgentId = agent.Id
+            }
+        };
+    }
+}

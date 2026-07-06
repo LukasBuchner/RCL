@@ -1,0 +1,17 @@
+{
+  "positionTags": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "tag": "HomePosition",
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "alpha": 0.0,
+        "beta": 0.0,
+        "gamma": 0.0
+      }
+    }
+  ],
+  "sceneObjects": []
+}

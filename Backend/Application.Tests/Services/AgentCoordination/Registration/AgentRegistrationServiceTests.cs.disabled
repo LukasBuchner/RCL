@@ -1,0 +1,339 @@
+using FHOOE.Freydis.Agents;
+using FHOOE.Freydis.Agents.Services;
+using FHOOE.Freydis.Application.Services.Agents.Registration;
+using FHOOE.Freydis.Application.Services.Agents.SkillSynchronization;
+using FHOOE.Freydis.Application.Services.Common;
+using FHOOE.Freydis.Domain;
+using FHOOE.Freydis.Domain.Entities.Common;
+using Microsoft.Extensions.Logging;
+using Moq;
+
+namespace FHOOE.Freydis.Application.Tests.Services.AgentCoordination.Registration;
+
+/// <summary>
+/// Unit tests for the AgentRegistrationService implementation.
+/// </summary>
+public class AgentRegistrationServiceTests
+{
+    private readonly Mock<IRepository<Agent>> _agentRepositoryMock;
+    private readonly Mock<IRepository<Skill>> _skillRepositoryMock;
+    private readonly Mock<IAgentManager> _agentManagerMock;
+    private readonly Mock<IRclSharedCrudService> _crudServiceMock;
+    private readonly Mock<ISkillSynchronizationService> _skillSyncServiceMock;
+    private readonly Mock<ILogger<AgentRegistrationService>> _loggerMock;
+    private readonly AgentRegistrationService _sut;
+    
+    public AgentRegistrationServiceTests()
+    {
+        _agentRepositoryMock = new Mock<IRepository<Agent>>();
+        _skillRepositoryMock = new Mock<IRepository<Skill>>();
+        _agentManagerMock = new Mock<IAgentManager>();
+        _crudServiceMock = new Mock<IRclSharedCrudService>();
+        _skillSyncServiceMock = new Mock<ISkillSynchronizationService>();
+        _loggerMock = new Mock<ILogger<AgentRegistrationService>>();
+        
+        _sut = new AgentRegistrationService(
+            _agentRepositoryMock.Object,
+            _skillRepositoryMock.Object,
+            _agentManagerMock.Object,
+            _crudServiceMock.Object,
+            _skillSyncServiceMock.Object,
+            _loggerMock.Object);
+    }
+    
+    [Fact]
+    public async Task RegisterRuntimeAgentAsync_Should_CreateNewAgent_WhenAgentDoesNotExist()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var agentName = "TestAgent";
+        var skills = new List<Skill>
+        {
+            new() { Id = Guid.NewGuid(), Name = "Skill1", Description = "Test skill 1", Properties = new(), AgentIds = new() },
+            new() { Id = Guid.NewGuid(), Name = "Skill2", Description = "Test skill 2", Properties = new(), AgentIds = new() }
+        };
+        
+        var runtimeAgentMock = new Mock<IRuntimeAgent>();
+        runtimeAgentMock.Setup(x => x.Id).Returns(agentId);
+        runtimeAgentMock.Setup(x => x.Name).Returns(agentName);
+        runtimeAgentMock.Setup(x => x.GetAvailableSkillsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(skills);
+        
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync((Agent?)null);
+        
+        // Setup skill synchronization mock
+        var skillSyncResult = new SkillSynchronizationResult
+        {
+            SkillsCreated = 2,
+            SkillsUpdated = 0,
+            TotalSkillsProcessed = 2,
+            Errors = new List<string>()
+        };
+        _skillSyncServiceMock.Setup(x => x.SyncAgentSkillsAsync(It.IsAny<IRuntimeAgent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(skillSyncResult);
+        
+        Agent? capturedAgent = null;
+        _crudServiceMock.Setup(x => x.CreateAgentAsync(It.IsAny<Agent>()))
+            .Callback<Agent>(a => capturedAgent = a)
+            .ReturnsAsync((Agent a) => a);
+        
+        // Act
+        var result = await _sut.RegisterRuntimeAgentAsync(runtimeAgentMock.Object);
+        
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(agentId, result.Id);
+        Assert.Equal(agentName, result.Name);
+        Assert.Equal(AgentState.Active, result.State);
+        Assert.NotNull(result.LastSeenUtc);
+        Assert.Equal(skills.Select(s => s.Id).ToList(), result.SkillIds);
+        
+        _crudServiceMock.Verify(x => x.CreateAgentAsync(It.IsAny<Agent>()), Times.Once);
+        _skillSyncServiceMock.Verify(x => x.SyncAgentSkillsAsync(runtimeAgentMock.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+    
+    [Fact]
+    public async Task RegisterRuntimeAgentAsync_Should_ThrowInvalidOperationException_WhenAgentAlreadyExists()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var existingAgent = new Agent
+        {
+            Id = agentId,
+            Name = "ExistingAgent",
+            RepresentativeColor = "#000000"
+        };
+        
+        var runtimeAgentMock = new Mock<IRuntimeAgent>();
+        runtimeAgentMock.Setup(x => x.Id).Returns(agentId);
+        
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync(existingAgent);
+        
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.RegisterRuntimeAgentAsync(runtimeAgentMock.Object));
+    }
+    
+    [Fact]
+    public async Task UnregisterAgentAsync_Should_DeleteAgent_WhenAgentExists()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var existingAgent = new Agent
+        {
+            Id = agentId,
+            Name = "AgentToDelete",
+            RepresentativeColor = "#FF0000"
+        };
+        
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync(existingAgent);
+        _crudServiceMock.Setup(x => x.DeleteAgentAsync(agentId)).ReturnsAsync(true);
+        
+        // Act
+        var result = await _sut.UnregisterAgentAsync(agentId);
+        
+        // Assert
+        Assert.True(result);
+        _crudServiceMock.Verify(x => x.DeleteAgentAsync(agentId), Times.Once);
+    }
+    
+    [Fact]
+    public async Task UnregisterAgentAsync_Should_ReturnFalse_WhenAgentDoesNotExist()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync((Agent?)null);
+        
+        // Act
+        var result = await _sut.UnregisterAgentAsync(agentId);
+        
+        // Assert
+        Assert.False(result);
+        _crudServiceMock.Verify(x => x.DeleteAgentAsync(It.IsAny<Guid>()), Times.Never);
+    }
+    
+    [Fact]
+    public async Task SyncRuntimeAgentsAsync_Should_RegisterNewAgents()
+    {
+        // Arrange
+        var runtimeAgent1 = CreateMockRuntimeAgent(Guid.NewGuid(), "Agent1");
+        var runtimeAgent2 = CreateMockRuntimeAgent(Guid.NewGuid(), "Agent2");
+        
+        _agentManagerMock.Setup(x => x.ActiveAgents)
+            .Returns(new List<IRuntimeAgent> { runtimeAgent1.Object, runtimeAgent2.Object }.AsReadOnly());
+        
+        _agentRepositoryMock.Setup(x => x.GetAllAsync())
+            .ReturnsAsync(new List<Agent>());
+        
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(It.IsAny<Guid>()))
+            .ReturnsAsync((Agent?)null);
+        
+        _crudServiceMock.Setup(x => x.CreateAgentAsync(It.IsAny<Agent>()))
+            .ReturnsAsync((Agent a) => a);
+        
+        // Setup skill synchronization mock
+        var skillSyncResult = new SkillSynchronizationResult
+        {
+            SkillsCreated = 1,
+            SkillsUpdated = 0,
+            TotalSkillsProcessed = 1,
+            Errors = new List<string>()
+        };
+        _skillSyncServiceMock.Setup(x => x.SyncAgentSkillsAsync(It.IsAny<IRuntimeAgent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(skillSyncResult);
+        
+        // Act
+        var result = await _sut.SyncRuntimeAgentsAsync();
+        
+        // Assert
+        Assert.Equal(2, result.AgentsRegistered);
+        Assert.Equal(0, result.AgentsUpdated);
+        Assert.Equal(0, result.AgentsMarkedLost);
+        Assert.Equal(2, result.TotalRuntimeAgents);
+        Assert.Equal(0, result.TotalDomainAgents);
+        Assert.Empty(result.Errors);
+    }
+    
+    [Fact]
+    public async Task SyncRuntimeAgentsAsync_Should_UpdateExistingAgents()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var runtimeAgent = CreateMockRuntimeAgent(agentId, "Agent1");
+        
+        var existingAgent = new Agent
+        {
+            Id = agentId,
+            Name = "Agent1",
+            State = AgentState.Inactive,
+            RepresentativeColor = "#00FF00"
+        };
+        
+        _agentManagerMock.Setup(x => x.ActiveAgents)
+            .Returns(new List<IRuntimeAgent> { runtimeAgent.Object }.AsReadOnly());
+        
+        _agentRepositoryMock.Setup(x => x.GetAllAsync())
+            .ReturnsAsync(new List<Agent> { existingAgent });
+        
+        _crudServiceMock.Setup(x => x.UpdateAgentAsync(It.IsAny<Agent>()))
+            .ReturnsAsync(true);
+        
+        // Setup skill synchronization mock
+        var skillSyncResult = new SkillSynchronizationResult
+        {
+            SkillsCreated = 0,
+            SkillsUpdated = 1,
+            TotalSkillsProcessed = 1,
+            Errors = new List<string>()
+        };
+        _skillSyncServiceMock.Setup(x => x.SyncAgentSkillsAsync(It.IsAny<IRuntimeAgent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(skillSyncResult);
+        
+        // Act
+        var result = await _sut.SyncRuntimeAgentsAsync();
+        
+        // Assert
+        Assert.Equal(0, result.AgentsRegistered);
+        Assert.Equal(1, result.AgentsUpdated);
+        Assert.Equal(0, result.AgentsMarkedLost);
+    }
+    
+    [Fact]
+    public async Task SyncRuntimeAgentsAsync_Should_MarkLostAgents()
+    {
+        // Arrange
+        var lostAgent = new Agent
+        {
+            Id = Guid.NewGuid(),
+            Name = "LostAgent",
+            State = AgentState.Active,
+            RepresentativeColor = "#0000FF"
+        };
+        
+        _agentManagerMock.Setup(x => x.ActiveAgents)
+            .Returns(new List<IRuntimeAgent>().AsReadOnly());
+        
+        _agentRepositoryMock.Setup(x => x.GetAllAsync())
+            .ReturnsAsync(new List<Agent> { lostAgent });
+        
+        _crudServiceMock.Setup(x => x.UpdateAgentAsync(It.IsAny<Agent>()))
+            .ReturnsAsync(true);
+        
+        // Act
+        var result = await _sut.SyncRuntimeAgentsAsync();
+        
+        // Assert
+        Assert.Equal(0, result.AgentsRegistered);
+        Assert.Equal(0, result.AgentsUpdated);
+        Assert.Equal(1, result.AgentsMarkedLost);
+    }
+    
+    [Fact]
+    public async Task UpdateAgentStateAsync_Should_UpdateState_WhenAgentExists()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var existingAgent = new Agent
+        {
+            Id = agentId,
+            Name = "TestAgent",
+            State = AgentState.Active,
+            RepresentativeColor = "#FFFFFF"
+        };
+        
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync(existingAgent);
+        _crudServiceMock.Setup(x => x.UpdateAgentAsync(It.IsAny<Agent>()))
+            .ReturnsAsync(true);
+        
+        // Act
+        var result = await _sut.UpdateAgentStateAsync(agentId, AgentState.Inactive);
+        
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(AgentState.Inactive, result.State);
+        _crudServiceMock.Verify(x => x.UpdateAgentAsync(It.Is<Agent>(a => a.State == AgentState.Inactive)), Times.Once);
+    }
+    
+    [Fact]
+    public async Task IsAgentRegisteredAsync_Should_ReturnTrue_WhenAgentExists()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var existingAgent = new Agent
+        {
+            Id = agentId,
+            Name = "TestAgent",
+            RepresentativeColor = "#123456"
+        };
+        
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync(existingAgent);
+        
+        // Act
+        var result = await _sut.IsAgentRegisteredAsync(agentId);
+        
+        // Assert
+        Assert.True(result);
+    }
+    
+    [Fact]
+    public async Task IsAgentRegisteredAsync_Should_ReturnFalse_WhenAgentDoesNotExist()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        _agentRepositoryMock.Setup(x => x.GetByIdAsync(agentId)).ReturnsAsync((Agent?)null);
+        
+        // Act
+        var result = await _sut.IsAgentRegisteredAsync(agentId);
+        
+        // Assert
+        Assert.False(result);
+    }
+    
+    private Mock<IRuntimeAgent> CreateMockRuntimeAgent(Guid id, string name)
+    {
+        var mock = new Mock<IRuntimeAgent>();
+        mock.Setup(x => x.Id).Returns(id);
+        mock.Setup(x => x.Name).Returns(name);
+        mock.Setup(x => x.GetAvailableSkillsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Skill>());
+        return mock;
+    }
+}

@@ -1,0 +1,283 @@
+using FHOOE.Freydis.Application.Services.Agents.SkillSynchronization;
+using FHOOE.Freydis.Application.Services.Common;
+using FHOOE.Freydis.Domain;
+using FHOOE.Freydis.Domain.Entities.Common;
+using Microsoft.Extensions.Logging;
+using Moq;
+
+namespace FHOOE.Freydis.Application.Tests.Services.AgentCoordination.SkillSynchronization;
+
+/// <summary>
+/// Tests for the AgentSkillRelationshipManager implementation.
+/// Follows TDD principles and ensures SOLID compliance.
+/// </summary>
+public class AgentSkillRelationshipManagerTests
+{
+    private readonly Mock<IRepository<Agent>> _mockAgentRepository;
+    private readonly Mock<IRepository<Skill>> _mockSkillRepository;
+    private readonly Mock<IRclSharedCrudService> _mockCrudService;
+    private readonly Mock<ILogger<AgentSkillRelationshipManager>> _mockLogger;
+    private readonly AgentSkillRelationshipManager _manager;
+
+    public AgentSkillRelationshipManagerTests()
+    {
+        _mockAgentRepository = new Mock<IRepository<Agent>>();
+        _mockSkillRepository = new Mock<IRepository<Skill>>();
+        _mockCrudService = new Mock<IRclSharedCrudService>();
+        _mockLogger = new Mock<ILogger<AgentSkillRelationshipManager>>();
+
+        _manager = new AgentSkillRelationshipManager(
+            _mockAgentRepository.Object,
+            _mockSkillRepository.Object,
+            _mockCrudService.Object,
+            _mockLogger.Object
+        );
+    }
+
+    [Fact]
+    public async Task EstablishRelationshipAsync_NewRelationship_EstablishesBidirectionalRelationship()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid>(),
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>()
+        };
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync(agent);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skillId)).ReturnsAsync(skill);
+        _mockCrudService.Setup(c => c.UpdateAgentAsync(It.IsAny<Agent>())).ReturnsAsync(true);
+        _mockCrudService.Setup(c => c.UpdateSkillAsync(It.IsAny<Skill>())).ReturnsAsync(true);
+
+        // Act
+        var result = await _manager.EstablishRelationshipAsync(agentId, skillId);
+
+        // Assert
+        Assert.True(result);
+        _mockCrudService.Verify(c => c.UpdateAgentAsync(It.Is<Agent>(a => a.SkillIds.Contains(skillId))), Times.Once);
+        _mockCrudService.Verify(c => c.UpdateSkillAsync(It.Is<Skill>(s => s.AgentIds.Contains(agentId))), Times.Once);
+    }
+
+    [Fact]
+    public async Task EstablishRelationshipAsync_RelationshipAlreadyExists_ReturnsFalse()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { skillId },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid> { agentId }
+        };
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync(agent);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skillId)).ReturnsAsync(skill);
+
+        // Act
+        var result = await _manager.EstablishRelationshipAsync(agentId, skillId);
+
+        // Assert
+        Assert.False(result);
+        _mockCrudService.Verify(c => c.UpdateAgentAsync(It.IsAny<Agent>()), Times.Never);
+        _mockCrudService.Verify(c => c.UpdateSkillAsync(It.IsAny<Skill>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task EstablishRelationshipAsync_AgentNotFound_ReturnsFalse()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync((Agent?)null);
+
+        // Act
+        var result = await _manager.EstablishRelationshipAsync(agentId, skillId);
+
+        // Assert
+        Assert.False(result);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(It.IsAny<Guid>()), Times.Never);
+        _mockCrudService.Verify(c => c.UpdateAgentAsync(It.IsAny<Agent>()), Times.Never);
+        _mockCrudService.Verify(c => c.UpdateSkillAsync(It.IsAny<Skill>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RemoveRelationshipAsync_ExistingRelationship_RemovesBidirectionalRelationship()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { skillId },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid> { agentId }
+        };
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync(agent);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skillId)).ReturnsAsync(skill);
+        _mockCrudService.Setup(c => c.UpdateAgentAsync(It.IsAny<Agent>())).ReturnsAsync(true);
+        _mockCrudService.Setup(c => c.UpdateSkillAsync(It.IsAny<Skill>())).ReturnsAsync(true);
+
+        // Act
+        var result = await _manager.RemoveRelationshipAsync(agentId, skillId);
+
+        // Assert
+        Assert.True(result);
+        _mockCrudService.Verify(c => c.UpdateAgentAsync(It.Is<Agent>(a => !a.SkillIds.Contains(skillId))), Times.Once);
+        _mockCrudService.Verify(c => c.UpdateSkillAsync(It.Is<Skill>(s => !s.AgentIds.Contains(agentId))), Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncAgentRelationshipsAsync_AgentWithNewAndRemovedSkills_SyncsCorrectly()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var existingSkillId = Guid.NewGuid();
+        var newSkillId = Guid.NewGuid();
+        var removedSkillId = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { existingSkillId, removedSkillId },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var currentSkillIds = new List<Guid> { existingSkillId, newSkillId };
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync(agent);
+
+        // Mock EstablishRelationshipAsync and RemoveRelationshipAsync calls
+        // Note: This would typically require refactoring to make these methods virtual or extract them to separate services
+        // For simplicity, we'll test the main logic through SyncAgentRelationshipsAsync
+
+        var existingSkill = new Skill { Id = existingSkillId, Name = "Existing", Description = "", Properties = new List<Property>(), AgentIds = new List<Guid> { agentId } };
+        var newSkill = new Skill { Id = newSkillId, Name = "New", Description = "", Properties = new List<Property>(), AgentIds = new List<Guid>() };
+        var removedSkill = new Skill { Id = removedSkillId, Name = "Removed", Description = "", Properties = new List<Property>(), AgentIds = new List<Guid> { agentId } };
+
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(existingSkillId)).ReturnsAsync(existingSkill);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(newSkillId)).ReturnsAsync(newSkill);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(removedSkillId)).ReturnsAsync(removedSkill);
+
+        _mockCrudService.Setup(c => c.UpdateAgentAsync(It.IsAny<Agent>())).ReturnsAsync(true);
+        _mockCrudService.Setup(c => c.UpdateSkillAsync(It.IsAny<Skill>())).ReturnsAsync(true);
+
+        // Act
+        var result = await _manager.SyncAgentRelationshipsAsync(agentId, currentSkillIds);
+
+        // Assert
+        Assert.Equal(agentId, result.AgentId);
+        Assert.Equal(1, result.RelationshipsAdded);
+        Assert.Equal(1, result.RelationshipsRemoved);
+        Assert.Contains(newSkillId, result.AddedSkillIds);
+        Assert.Contains(removedSkillId, result.RemovedSkillIds);
+        Assert.True(result.HasChanges);
+    }
+
+    [Fact]
+    public async Task ValidateRelationshipConsistencyAsync_ConsistentRelationships_ReturnsTrue()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { skillId },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid> { agentId }
+        };
+
+        _mockAgentRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Agent> { agent });
+        _mockSkillRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Skill> { skill });
+
+        // Act
+        var result = await _manager.ValidateRelationshipConsistencyAsync();
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task ValidateRelationshipConsistencyAsync_InconsistentRelationships_ReturnsFalse()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { skillId },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>() // Missing agent reference
+        };
+
+        _mockAgentRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Agent> { agent });
+        _mockSkillRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Skill> { skill });
+
+        // Act
+        var result = await _manager.ValidateRelationshipConsistencyAsync();
+
+        // Assert
+        Assert.False(result);
+    }
+}

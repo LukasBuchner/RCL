@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>FHOOE.Freydis.Domain</RootNamespace>
+        <AssemblyName>FHOOE.Freydis.Domain</AssemblyName>
+        <LangVersion>14</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="HotChocolate.Types" Version="15.1.16"/>
+
+        <PackageReference Include="System.Reactive" Version="6.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Scheduling\Scheduling.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,1232 @@
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Agent {
+    id: UUID!
+    name: String!
+    skills: [Skill]!
+    representativeColor: String!
+    state: AgentState!
+    lastSeenUtc: DateTime
+    metadata: [KeyValuePairOfStringAndObject!]
+}
+
+type AgentHealthStatus {
+    agentId: UUID!
+    agentName: String!
+    isHealthy: Boolean!
+    isAvailable: Boolean!
+    activeExecutions: Int!
+    totalExecutionsCompleted: Int!
+    failedExecutions: Int!
+    lastSeenUtc: DateTime!
+    startedUtc: DateTime!
+    cpuUsagePercent: Float
+    memoryUsageMb: Float
+    averageExecutionTimeSeconds: Float
+    statusMessage: String
+    errorMessage: String
+    additionalMetrics: [KeyValuePairOfStringAndObject!]
+}
+
+type CreateAgentPayload {
+    agent: Agent
+}
+
+type CreateDependencyEdgePayload {
+    dependencyEdge: DependencyEdge
+}
+
+type CreateNodePayload {
+    node: Node
+}
+
+type CreatePositionTagPayload {
+    positionTag: PositionTag
+}
+
+type CreateSceneObjectPayload {
+    sceneObject: SceneObject
+}
+
+type CreateSkillPayload {
+    skill: Skill
+}
+
+type DeleteAgentPayload {
+    boolean: Boolean
+}
+
+type DeleteDependencyEdgePayload {
+    boolean: Boolean
+}
+
+type DeleteNodePayload {
+    boolean: Boolean
+}
+
+type DeletePositionTagPayload {
+    boolean: Boolean
+}
+
+type DeleteSceneObjectPayload {
+    boolean: Boolean
+}
+
+type DeleteSkillPayload {
+    boolean: Boolean
+}
+
+type CreateProcedurePayload {
+    procedure: Procedure
+}
+
+type DeleteProcedurePayload {
+    boolean: Boolean
+}
+
+type LoadProcedurePayload {
+    procedure: Procedure
+}
+
+type UnloadProcedurePayload {
+    success: Boolean!
+}
+
+type DependencyEdge {
+    id: UUID!
+    procedureId: UUID!
+    sourceId: UUID!
+    targetId: UUID!
+    sourceHandle: String
+    targetHandle: String
+}
+
+type KeyValuePairOfStringAndObject {
+    key: String!
+    value: String
+}
+
+input KeyValuePairOfStringAndObjectInput {
+    key: String!
+    value: String
+}
+
+type Mutation {
+    "Start a the loaded procedure."
+    startLoadedProcedure: StartLoadedProcedurePayload! @cost(weight: "10")
+    "Creates a new SceneObject based on the provided input."
+    createSceneObject(input: CreateSceneObjectInput!): CreateSceneObjectPayload! @cost(weight: "10")
+    "Updates a SceneObject based on the provided input."
+    updateSceneObject(input: UpdateSceneObjectInput!): UpdateSceneObjectPayload! @cost(weight: "10")
+    "Deletes a SceneObject based on the ID."
+    deleteSceneObject(input: DeleteSceneObjectInput!): DeleteSceneObjectPayload! @cost(weight: "10")
+    "Creates a new PositionTag based on the provided input."
+    createPositionTag(input: CreatePositionTagInput!): CreatePositionTagPayload! @cost(weight: "10")
+    "Updates a PositionTag based on the provided input."
+    updatePositionTag(input: UpdatePositionTagInput!): UpdatePositionTagPayload! @cost(weight: "10")
+    "Deletes a PositionTag based on the ID."
+    deletePositionTag(input: DeletePositionTagInput!): DeletePositionTagPayload! @cost(weight: "10")
+    "Creates a new DependencyEdge based on the provided input."
+    createDependencyEdge(
+        input: CreateDependencyEdgeInput!
+    ): CreateDependencyEdgePayload! @cost(weight: "10")
+    "Updates a DependencyEdge based on the provided input."
+    updateDependencyEdge(
+        input: UpdateDependencyEdgeInput!
+    ): UpdateDependencyEdgePayload! @cost(weight: "10")
+    "Deletes a DependencyEdge based on the ID."
+    deleteDependencyEdge(
+        input: DeleteDependencyEdgeInput!
+    ): DeleteDependencyEdgePayload! @cost(weight: "10")
+    "Creates a new Node based on the provided input."
+    createNode(input: CreateNodeInput!): CreateNodePayload! @cost(weight: "10")
+    "Updates a Node based on the provided input."
+    updateNode(input: UpdateNodeInput!): UpdateNodePayload! @cost(weight: "10")
+    "Deletes a Node by ID **together with its entire descendant tree** and any DependencyEdges that reference any of those nodes."
+    deleteNode(input: DeleteNodeInput!): DeleteNodePayload! @cost(weight: "10")
+    "Creates a new Agent based on the provided input."
+    createAgent(input: CreateAgentInput!): CreateAgentPayload! @cost(weight: "10")
+    "Updates an Agent based on the provided input."
+    updateAgent(input: UpdateAgentInput!): UpdateAgentPayload! @cost(weight: "10")
+    "Deletes an Agent based on the ID."
+    deleteAgent(input: DeleteAgentInput!): DeleteAgentPayload! @cost(weight: "10")
+    "Creates a new Skill based on the provided input."
+    createSkill(input: CreateSkillInput!): CreateSkillPayload! @cost(weight: "10")
+    "Updates a Skill based on the provided input."
+    updateSkill(input: UpdateSkillInput!): UpdateSkillPayload! @cost(weight: "10")
+    "Deletes a Skill based on the ID."
+    deleteSkill(input: DeleteSkillInput!): DeleteSkillPayload! @cost(weight: "10")
+
+    "Adds a variable to a procedure."
+    addVariableToProcedure(
+        procedureId: UUID!
+        variable: VariableDefinitionInput!
+    ): Procedure! @cost(weight: "10")
+
+    "Updates a variable in a procedure."
+    updateProcedureVariable(
+        procedureId: UUID!
+        variableName: String!
+        variable: VariableDefinitionInput!
+    ): Procedure! @cost(weight: "10")
+
+    "Removes a variable from a procedure."
+    removeProcedureVariable(
+        procedureId: UUID!
+        variableName: String!
+    ): Procedure! @cost(weight: "10")
+
+    "Creates a new procedure."
+    createProcedure(input: CreateProcedureInput!): CreateProcedurePayload! @cost(weight: "10")
+
+    "Deletes a procedure and all associated entities (nodes, edges, variables)."
+    deleteProcedure(input: DeleteProcedureInput!): DeleteProcedurePayload! @cost(weight: "10")
+
+    "Loads a procedure, making it the currently active procedure."
+    loadProcedure(id: UUID!): LoadProcedurePayload! @cost(weight: "10")
+
+    "Unloads the currently active procedure."
+    unloadProcedure: UnloadProcedurePayload! @cost(weight: "10")
+}
+
+type NodePosition {
+    x: Float!
+    y: Float!
+}
+
+type Position {
+    x: Float!
+    y: Float!
+    z: Float!
+    alpha: Float!
+    beta: Float!
+    gamma: Float!
+}
+
+type PositionTag {
+    id: UUID!
+    tag: String!
+    position: Position!
+}
+
+"Wrapper type for boolean property values"
+type BooleanValue {
+    "The actual boolean value"
+    boolValue: Boolean!
+    "Type descriptor"
+    type: BooleanType!
+}
+
+"Wrapper type for number property values"
+type NumberValue {
+    "The actual numeric value"
+    numberValue: Float!
+    "Type descriptor"
+    type: NumberType!
+}
+
+"Wrapper type for string property values"
+type StringValue {
+    "The actual string value"
+    stringValue: String!
+    "Type descriptor"
+    type: StringType!
+}
+
+"Wrapper type for position property values"
+type PositionValue {
+    "The actual position value"
+    positionValue: Position!
+    "Type descriptor"
+    type: PositionType!
+}
+
+"Wrapper type for position tag property values"
+type PositionTagValue {
+    "The actual position tag reference"
+    positionTagValue: PositionTag!
+    "Type descriptor"
+    type: PositionTagType!
+}
+
+"Wrapper type for scene object property values"
+type SceneObjectValue {
+    "The actual scene object reference"
+    sceneObjectValue: SceneObject!
+    "Type descriptor"
+    type: SceneObjectType!
+}
+
+"Union of all property value wrapper types"
+union PropertyValue = BooleanValue | NumberValue | StringValue |
+    PositionValue | PositionTagValue | SceneObjectValue
+
+type Property {
+    name: String!
+    value: PropertyValue!
+    direction: PropertyDirection!
+    binding: VariableBinding
+}
+
+type VariableBinding {
+    variableName: String!
+    mode: BindingMode!
+    transformExpression: String
+}
+
+enum BindingMode {
+    READ
+    WRITE
+    READ_WRITE
+}
+
+type Query {
+    "Gets all agents from the system with support for filtering and sorting."
+    agents(
+        where: AgentFilterInput @cost(weight: "10")
+        order: [AgentSortInput!] @cost(weight: "10")
+    ): [Agent!]! @cost(weight: "10")
+    "Gets a specific agent by its unique identifier."
+    agentById(id: UUID!): Agent @cost(weight: "10")
+    "Gets all skills from the system with support for filtering and sorting."
+    skills(
+        where: SkillFilterInput @cost(weight: "10")
+        order: [SkillSortInput!] @cost(weight: "10")
+    ): [Skill!]! @cost(weight: "10")
+    "Gets a specific skill by its unique identifier."
+    skillById(id: UUID!): Skill @cost(weight: "10")
+    "Gets all scene objects from the system with support for filtering and sorting."
+    sceneObjects(
+        where: SceneObjectFilterInput @cost(weight: "10")
+        order: [SceneObjectSortInput!] @cost(weight: "10")
+    ): [SceneObject!]! @cost(weight: "10")
+    "Gets a specific scene object by its unique identifier."
+    sceneObjectById(id: UUID!): SceneObject @cost(weight: "10")
+    "Gets all position tags from the system with support for filtering and sorting."
+    positionTags(
+        where: PositionTagFilterInput @cost(weight: "10")
+        order: [PositionTagSortInput!] @cost(weight: "10")
+    ): [PositionTag!]! @cost(weight: "10")
+    "Gets a specific position tag by its unique identifier."
+    positionTagById(id: UUID!): PositionTag @cost(weight: "10")
+    "Gets all dependency edges from the system with support for filtering and sorting."
+    dependencyEdges(
+        where: DependencyEdgeFilterInput @cost(weight: "10")
+        order: [DependencyEdgeSortInput!] @cost(weight: "10")
+    ): [DependencyEdge!]! @cost(weight: "10")
+    "Gets a specific dependency edge by its unique identifier."
+    dependencyEdgeById(id: UUID!): DependencyEdge @cost(weight: "10")
+    "Gets all nodes from the system with support for filtering."
+    nodes(where: NodeFilterInput @cost(weight: "10")): [Node!]! @cost(weight: "10")
+    "Gets a specific node by its unique identifier."
+    nodeById(id: UUID!): Node @cost(weight: "10")
+    "Gets all runtime agents, combining domain agent data with runtime status information."
+    runtimeAgents: [RuntimeAgentInfo!]! @cost(weight: "10")
+    "Gets a specific runtime agent by ID, combining domain and runtime information."
+    runtimeAgentById(agentId: UUID!): RuntimeAgentInfo @cost(weight: "10")
+    "Gets a specific runtime agent by name, combining domain and runtime information."
+    runtimeAgentByName(agentName: String!): RuntimeAgentInfo @cost(weight: "10")
+    "Gets all procedures from the system."
+    procedures: [Procedure!]! @cost(weight: "10")
+    "Gets a specific procedure by its unique identifier."
+    procedureById(id: UUID!): Procedure @cost(weight: "10")
+    "Gets the currently loaded/active procedure, if any."
+    loadedProcedure: Procedure @cost(weight: "10")
+    "Gets the scheduling configuration including time-to-pixel scale and positioning settings."
+    schedulingConfiguration: SchedulingConfiguration! @cost(weight: "10")
+}
+
+type RuntimeAgentInfo {
+    id: UUID!
+    name: String!
+    domainAgent: Agent
+    healthStatus: AgentHealthStatus
+    availableSkills: [Skill!]
+    isActive: Boolean!
+    agentType: String!
+    startedAt: DateTime
+    lastSeen: DateTime
+}
+
+type SchedulingConfiguration {
+    timeToPixelScale: Float!
+    baseYOffset: Float!
+    siblingSpacing: Float!
+    containerTopPadding: Float!
+    containerBottomPadding: Float!
+    baseHeight: Float!
+    routerDropdownHeight: Float!
+}
+
+type SceneObject {
+    id: UUID!
+    name: String!
+    position: Position!
+}
+
+type Skill {
+    id: UUID!
+    name: String!
+    description: String!
+    properties: [Property!]!
+    agents: [Agent]!
+}
+
+type SkillExecutionNode {
+    skillExecutionTask: SkillExecutionTask!
+    id: UUID!
+    procedureId: UUID!
+    position: NodePosition!
+    parentId: UUID
+    extent: String
+    width: Float
+    height: Float
+    selectable: Boolean
+    selected: Boolean
+    draggable: Boolean
+    dragging: Boolean
+    hidden: Boolean
+}
+
+type SkillExecutionTask {
+    skill: Skill!
+    agent: Agent!
+    name: String!
+    description: String
+    startTime: Float!
+    duration: Float!
+    finishTime: Float
+    isExecuting: Boolean
+    progress: Float
+}
+
+type StartLoadedProcedurePayload {
+    boolean: Boolean
+}
+
+type Subscription {
+    nodesChanged: [Node!]!
+    dependencyEdgesChanged: [DependencyEdge!]!
+    agentsChanged: [Agent!]!
+    skillsChanged: [Skill!]!
+    positionTagsChanged: [PositionTag!]!
+    sceneObjectsChanged: [SceneObject!]!
+    executionTimingChanged: ExecutionTiming!
+    procedureVariablesChanged: [VariableDefinition!]!
+    loadedProcedureIdentityChanged: LoadedProcedureIdentity
+    procedureValidationChanged: ProcedureValidationResult!
+}
+
+type ProcedureValidationResult {
+    agentSerializationViolations: [AgentSerializationViolation!]!
+    hasViolations: Boolean!
+}
+
+type AgentSerializationViolation {
+    agentId: UUID!
+    agentName: String!
+    unserializedSkills: [UnserializedSkill!]!
+    missingFsPairs: [SkillPair!]!
+}
+
+type UnserializedSkill {
+    nodeId: UUID!
+    skillName: String!
+}
+
+type SkillPair {
+    skillA: UUID!
+    skillB: UUID!
+}
+
+type LoadedProcedureIdentity {
+    id: UUID!
+    name: String!
+}
+
+type ExecutionTiming {
+    startTimeUtc: DateTime!
+    currentTimeSeconds: Float!
+    estimatedTotalDurationSeconds: Float!
+    estimatedEndTimeUtc: DateTime!
+    progressPercentage: Float!
+    isRunning: Boolean!
+}
+
+type ConditionalBranch {
+    name: String!
+    condition: String
+    priority: Int!
+    targetNodeId: UUID
+}
+
+union SelectorExpression = SimpleVariableSelector | ExpressionSelector
+
+type SimpleVariableSelector {
+    expression: String!
+}
+
+type ExpressionSelector {
+    expression: String!
+}
+
+type RouterTask {
+    name: String!
+    description: String
+    startTime: Float!
+    duration: Float!
+    finishTime: Float
+    isExecuting: Boolean
+    progress: Float
+    selector: SelectorExpression!
+    branches: [ConditionalBranch!]!
+    selectedBranchTargetNodeId: UUID
+    selectedBranchName: String
+    selectedAtUtc: DateTime
+    manuallySelectedBranch: String
+}
+
+type Task {
+    name: String!
+    description: String
+    startTime: Float!
+    duration: Float!
+    finishTime: Float
+    isExecuting: Boolean
+    progress: Float
+}
+
+type RouterNode {
+    routerTask: RouterTask!
+    id: UUID!
+    procedureId: UUID!
+    position: NodePosition!
+    parentId: UUID
+    extent: String
+    width: Float
+    height: Float
+    selectable: Boolean
+    selected: Boolean
+    draggable: Boolean
+    dragging: Boolean
+    hidden: Boolean
+}
+
+type TaskNode {
+    task: Task!
+    id: UUID!
+    procedureId: UUID!
+    position: NodePosition!
+    parentId: UUID
+    extent: String
+    width: Float
+    height: Float
+    selectable: Boolean
+    selected: Boolean
+    draggable: Boolean
+    dragging: Boolean
+    hidden: Boolean
+}
+
+type UpdateAgentPayload {
+    agent: Agent
+}
+
+type UpdateDependencyEdgePayload {
+    boolean: Boolean
+}
+
+type UpdateNodePayload {
+    boolean: Boolean
+}
+
+type UpdatePositionTagPayload {
+    boolean: Boolean
+}
+
+type UpdateSceneObjectPayload {
+    boolean: Boolean
+}
+
+type UpdateSkillPayload {
+    skill: Skill
+}
+
+union Node = SkillExecutionNode | TaskNode | RouterNode
+
+input AgentFilterInput {
+    and: [AgentFilterInput!]
+    or: [AgentFilterInput!]
+    id: UuidOperationFilterInput
+    name: StringOperationFilterInput
+    skills: ListFilterInputTypeOfSkillFilterInput
+    representativeColor: StringOperationFilterInput
+    state: AgentStateOperationFilterInput
+    lastSeenUtc: DateTimeOperationFilterInput
+}
+
+input AgentInput {
+    id: UUID!
+    name: String!
+    skillIds: [UUID!]!
+    representativeColor: String!
+    state: AgentState
+    lastSeenUtc: DateTime
+    metadata: [KeyValuePairOfStringAndObjectInput!]
+}
+
+input AgentSortInput {
+    id: SortEnumType @cost(weight: "10")
+    name: SortEnumType @cost(weight: "10")
+    representativeColor: SortEnumType @cost(weight: "10")
+    state: SortEnumType @cost(weight: "10")
+    lastSeenUtc: SortEnumType @cost(weight: "10")
+}
+
+input BooleanOperationFilterInput {
+    eq: Boolean @cost(weight: "10")
+    neq: Boolean @cost(weight: "10")
+}
+
+input BooleanPropertyInput {
+    value: Boolean!
+}
+
+input CreateAgentInput {
+    agentInput: AgentInput!
+}
+
+input CreateDependencyEdgeInput {
+    dependencyEdge: DependencyEdgeInput!
+}
+
+input CreateNodeInput {
+    nodeInput: NodeInput!
+}
+
+input CreatePositionTagInput {
+    positionTag: PositionTagInput!
+}
+
+input CreateSceneObjectInput {
+    sceneObject: SceneObjectInput!
+}
+
+input CreateSkillInput {
+    skillInput: SkillInput!
+}
+
+input DeleteAgentInput {
+    id: UUID!
+}
+
+input DeleteDependencyEdgeInput {
+    id: UUID!
+}
+
+input DeleteNodeInput {
+    id: UUID!
+}
+
+input DeletePositionTagInput {
+    id: UUID!
+}
+
+input DeleteSceneObjectInput {
+    id: UUID!
+}
+
+input DeleteSkillInput {
+    id: UUID!
+}
+
+input CreateProcedureInput {
+    name: String!
+    description: String
+}
+
+input DeleteProcedureInput {
+    id: UUID!
+}
+
+input DependencyEdgeFilterInput {
+    and: [DependencyEdgeFilterInput!]
+    or: [DependencyEdgeFilterInput!]
+    id: UuidOperationFilterInput
+    sourceId: UuidOperationFilterInput
+    targetId: UuidOperationFilterInput
+    sourceHandle: StringOperationFilterInput
+    targetHandle: StringOperationFilterInput
+}
+
+input DependencyEdgeInput {
+    id: UUID!
+    sourceId: UUID!
+    targetId: UUID!
+    sourceHandle: String
+    targetHandle: String
+}
+
+input DependencyEdgeSortInput {
+    id: SortEnumType @cost(weight: "10")
+    sourceId: SortEnumType @cost(weight: "10")
+    targetId: SortEnumType @cost(weight: "10")
+    sourceHandle: SortEnumType @cost(weight: "10")
+    targetHandle: SortEnumType @cost(weight: "10")
+}
+
+input FloatOperationFilterInput {
+    eq: Float @cost(weight: "10")
+    neq: Float @cost(weight: "10")
+    in: [Float] @cost(weight: "10")
+    nin: [Float] @cost(weight: "10")
+    gt: Float @cost(weight: "10")
+    ngt: Float @cost(weight: "10")
+    gte: Float @cost(weight: "10")
+    ngte: Float @cost(weight: "10")
+    lt: Float @cost(weight: "10")
+    nlt: Float @cost(weight: "10")
+    lte: Float @cost(weight: "10")
+    nlte: Float @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfAgentFilterInput {
+    all: AgentFilterInput @cost(weight: "10")
+    none: AgentFilterInput @cost(weight: "10")
+    some: AgentFilterInput @cost(weight: "10")
+    any: Boolean @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfPropertyFilterInput {
+    all: PropertyFilterInput @cost(weight: "10")
+    none: PropertyFilterInput @cost(weight: "10")
+    some: PropertyFilterInput @cost(weight: "10")
+    any: Boolean @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfSkillFilterInput {
+    all: SkillFilterInput @cost(weight: "10")
+    none: SkillFilterInput @cost(weight: "10")
+    some: SkillFilterInput @cost(weight: "10")
+    any: Boolean @cost(weight: "10")
+}
+
+input NodeFilterInput {
+    and: [NodeFilterInput!]
+    or: [NodeFilterInput!]
+    id: UuidOperationFilterInput
+    position: NodePositionFilterInput
+    parentId: UuidOperationFilterInput
+    extent: StringOperationFilterInput
+    width: FloatOperationFilterInput
+    height: FloatOperationFilterInput
+    selectable: BooleanOperationFilterInput
+    selected: BooleanOperationFilterInput
+    draggable: BooleanOperationFilterInput
+    dragging: BooleanOperationFilterInput
+    hidden: BooleanOperationFilterInput
+}
+
+input NodeInput @oneOf {
+    taskNode: TaskNodeInput
+    skillExecutionNode: SkillExecutionNodeInput
+    routerNode: RouterNodeInput
+}
+
+input NodePositionFilterInput {
+    and: [NodePositionFilterInput!]
+    or: [NodePositionFilterInput!]
+    x: FloatOperationFilterInput
+    y: FloatOperationFilterInput
+}
+
+input NodePositionInput {
+    x: Float!
+    y: Float!
+}
+
+input NumberPropertyInput {
+    value: Float!
+}
+
+input PositionFilterInput {
+    and: [PositionFilterInput!]
+    or: [PositionFilterInput!]
+    x: FloatOperationFilterInput
+    y: FloatOperationFilterInput
+    z: FloatOperationFilterInput
+    alpha: FloatOperationFilterInput
+    beta: FloatOperationFilterInput
+    gamma: FloatOperationFilterInput
+}
+
+input PositionInput {
+    x: Float!
+    y: Float!
+    z: Float!
+    alpha: Float!
+    beta: Float!
+    gamma: Float!
+}
+
+input PositionPropertyInput {
+    value: PositionInput!
+}
+
+input PositionSortInput {
+    x: SortEnumType @cost(weight: "10")
+    y: SortEnumType @cost(weight: "10")
+    z: SortEnumType @cost(weight: "10")
+    alpha: SortEnumType @cost(weight: "10")
+    beta: SortEnumType @cost(weight: "10")
+    gamma: SortEnumType @cost(weight: "10")
+}
+
+input PositionTagFilterInput {
+    and: [PositionTagFilterInput!]
+    or: [PositionTagFilterInput!]
+    id: UuidOperationFilterInput
+    tag: StringOperationFilterInput
+    position: PositionFilterInput
+}
+
+input PositionTagInput {
+    id: UUID!
+    tag: String!
+    position: PositionInput!
+}
+
+input PositionTagPropertyInput {
+    value: PositionTagInput!
+}
+
+input PositionTagSortInput {
+    id: SortEnumType @cost(weight: "10")
+    tag: SortEnumType @cost(weight: "10")
+    position: PositionSortInput @cost(weight: "10")
+}
+
+input PropertyFilterInput {
+    and: [PropertyFilterInput!]
+    or: [PropertyFilterInput!]
+    name: StringOperationFilterInput
+    value: PropertyTypeFilterInput
+}
+
+input PropertyInput {
+    name: String!
+    value: PropertyTypeInput!
+    direction: PropertyDirection!
+    binding: VariableBindingInput
+}
+
+input VariableBindingInput {
+    variableName: String!
+    mode: BindingMode!
+    transformExpression: String
+}
+
+input PropertyTypeFilterInput {
+    and: [PropertyTypeFilterInput!]
+    or: [PropertyTypeFilterInput!]
+}
+
+input PropertyTypeInput @oneOf {
+    booleanProperty: BooleanPropertyInput
+    numberProperty: NumberPropertyInput
+    stringProperty: StringPropertyInput
+    positionProperty: PositionPropertyInput
+    positionTagProperty: PositionTagPropertyInput
+    sceneObjectProperty: SceneObjectPropertyInput
+}
+
+input SceneObjectFilterInput {
+    and: [SceneObjectFilterInput!]
+    or: [SceneObjectFilterInput!]
+    id: UuidOperationFilterInput
+    name: StringOperationFilterInput
+    position: PositionFilterInput
+}
+
+input SceneObjectInput {
+    id: UUID!
+    name: String!
+    position: PositionInput!
+}
+
+input SceneObjectPropertyInput {
+    value: SceneObjectInput!
+}
+
+input SceneObjectSortInput {
+    id: SortEnumType @cost(weight: "10")
+    name: SortEnumType @cost(weight: "10")
+    position: PositionSortInput @cost(weight: "10")
+}
+
+input SkillExecutionNodeInput {
+    skillExecutionTask: SkillExecutionTaskInput!
+    id: UUID!
+    position: NodePositionInput!
+    parentId: UUID
+    extent: String
+    width: Float
+    height: Float
+    selectable: Boolean
+    selected: Boolean
+    draggable: Boolean
+    dragging: Boolean
+    hidden: Boolean
+}
+
+input SkillExecutionTaskInput {
+    name: String!
+    description: String
+    startTime: Float!
+    duration: Float!
+    agentId: UUID!
+    skill: SkillInput!
+}
+
+input SkillFilterInput {
+    and: [SkillFilterInput!]
+    or: [SkillFilterInput!]
+    id: UuidOperationFilterInput
+    name: StringOperationFilterInput
+    description: StringOperationFilterInput
+    properties: ListFilterInputTypeOfPropertyFilterInput
+    agents: ListFilterInputTypeOfAgentFilterInput
+}
+
+input SkillInput {
+    id: UUID!
+    name: String!
+    description: String!
+    properties: [PropertyInput!]!
+    agentIds: [UUID!]
+}
+
+input SkillSortInput {
+    id: SortEnumType @cost(weight: "10")
+    name: SortEnumType @cost(weight: "10")
+    description: SortEnumType @cost(weight: "10")
+}
+
+input StringOperationFilterInput {
+    and: [StringOperationFilterInput!]
+    or: [StringOperationFilterInput!]
+    eq: String @cost(weight: "10")
+    neq: String @cost(weight: "10")
+    contains: String @cost(weight: "20")
+    ncontains: String @cost(weight: "20")
+    in: [String] @cost(weight: "10")
+    nin: [String] @cost(weight: "10")
+    startsWith: String @cost(weight: "20")
+    nstartsWith: String @cost(weight: "20")
+    endsWith: String @cost(weight: "20")
+    nendsWith: String @cost(weight: "20")
+}
+
+input StringPropertyInput {
+    value: String!
+}
+
+input TaskInput {
+    name: String!
+    description: String
+    startTime: Float!
+    duration: Float!
+    isExecuting: Boolean
+}
+
+input TaskNodeInput {
+    id: UUID!
+    position: NodePositionInput!
+    parentId: UUID
+    extent: String
+    width: Float
+    height: Float
+    selectable: Boolean
+    selected: Boolean
+    draggable: Boolean
+    dragging: Boolean
+    hidden: Boolean
+    taskInput: TaskInput!
+}
+
+input RouterNodeInput {
+    id: UUID!
+    position: NodePositionInput!
+    parentId: UUID
+    extent: String
+    width: Float
+    height: Float
+    selectable: Boolean
+    selected: Boolean
+    draggable: Boolean
+    dragging: Boolean
+    hidden: Boolean
+    routerTaskInput: RouterTaskInput!
+}
+
+input RouterTaskInput {
+    name: String!
+    description: String
+    startTime: Float!
+    duration: Float!
+    isExecuting: Boolean
+    selector: SelectorExpressionInput!
+    branches: [ConditionalBranchInput!]!
+    manuallySelectedBranch: String
+}
+
+input SelectorExpressionInput @oneOf {
+    simpleVariableSelector: SimpleVariableSelectorInput
+    expressionSelector: ExpressionSelectorInput
+}
+
+input SimpleVariableSelectorInput {
+    expression: String!
+}
+
+input ExpressionSelectorInput {
+    expression: String!
+}
+
+input ConditionalBranchInput {
+    name: String!
+    condition: String
+    priority: Int!
+    targetNodeId: UUID
+}
+
+input UpdateAgentInput {
+    id: UUID!
+    agentInput: AgentInput!
+}
+
+input UpdateDependencyEdgeInput {
+    dependencyEdge: DependencyEdgeInput!
+}
+
+input UpdateNodeInput {
+    nodeInput: NodeInput!
+}
+
+input UpdatePositionTagInput {
+    positionTag: PositionTagInput!
+}
+
+input UpdateSceneObjectInput {
+    sceneObject: SceneObjectInput!
+}
+
+input UpdateSkillInput {
+    id: UUID!
+    skillInput: SkillInput!
+}
+
+input UuidOperationFilterInput {
+    eq: UUID @cost(weight: "10")
+    neq: UUID @cost(weight: "10")
+    in: [UUID] @cost(weight: "10")
+    nin: [UUID] @cost(weight: "10")
+    gt: UUID @cost(weight: "10")
+    ngt: UUID @cost(weight: "10")
+    gte: UUID @cost(weight: "10")
+    ngte: UUID @cost(weight: "10")
+    lt: UUID @cost(weight: "10")
+    nlt: UUID @cost(weight: "10")
+    lte: UUID @cost(weight: "10")
+    nlte: UUID @cost(weight: "10")
+}
+
+input AgentStateOperationFilterInput {
+    eq: AgentState @cost(weight: "10")
+    neq: AgentState @cost(weight: "10")
+    in: [AgentState] @cost(weight: "10")
+    nin: [AgentState] @cost(weight: "10")
+}
+
+input DateTimeOperationFilterInput {
+    eq: DateTime @cost(weight: "10")
+    neq: DateTime @cost(weight: "10")
+    in: [DateTime] @cost(weight: "10")
+    nin: [DateTime] @cost(weight: "10")
+    gt: DateTime @cost(weight: "10")
+    ngt: DateTime @cost(weight: "10")
+    gte: DateTime @cost(weight: "10")
+    ngte: DateTime @cost(weight: "10")
+    lt: DateTime @cost(weight: "10")
+    nlt: DateTime @cost(weight: "10")
+    lte: DateTime @cost(weight: "10")
+    nlte: DateTime @cost(weight: "10")
+}
+
+enum AgentState {
+    REGISTERED
+    ACTIVE
+    INACTIVE
+    LOST
+    DECOMMISSIONED
+}
+
+enum SortEnumType {
+    ASC
+    DESC
+}
+
+enum PropertyDirection {
+    INPUT
+    OUTPUT
+    INPUT_OUTPUT
+}
+
+"Represents a procedure with its nodes, edges, and variables."
+type Procedure {
+    id: UUID!
+    name: String!
+    description: String
+    createdAtUtc: DateTime!
+    lastUpdatedAtUtc: DateTime!
+    rootNodeIds: [UUID!]!
+    variables: [VariableDefinition!]!
+    isLoaded: Boolean!
+    lastLoadedUtc: DateTime
+}
+
+"Definition of a variable in a procedure."
+type VariableDefinition {
+    name: String!
+    type: ValueType!
+    defaultValue: String
+    scope: VariableScope!
+    source: VariableSource!
+    description: String
+    isReadOnly: Boolean!
+}
+
+"Input for creating or updating a variable definition."
+input VariableDefinitionInput {
+    name: String!
+    type: ValueTypeInput!
+    defaultValue: String
+    scope: VariableScope = PROCEDURE
+    source: VariableSource = USER_DEFINED
+    description: String
+    isReadOnly: Boolean = false
+}
+
+"Scope level where a variable is accessible."
+enum VariableScope {
+    PROCEDURE
+    TASK
+    GLOBAL
+}
+
+"Source of a variable's value."
+enum VariableSource {
+    USER_DEFINED
+    SKILL_OUTPUT
+    AGENT_STATE
+    SENSOR_DATA
+    RUNTIME_COMPUTED
+}
+
+"Base type for all value types."
+union ValueType = BooleanType | NumberType | StringType | PositionType | PositionTagType | SceneObjectType | EnumType | ListType
+
+"Boolean value type."
+type BooleanType {
+    typeName: String!
+}
+
+"Number value type."
+type NumberType {
+    typeName: String!
+}
+
+"String value type."
+type StringType {
+    typeName: String!
+}
+
+"Position value type."
+type PositionType {
+    typeName: String!
+}
+
+"Position tag value type."
+type PositionTagType {
+    typeName: String!
+}
+
+"Scene object value type."
+type SceneObjectType {
+    typeName: String!
+}
+
+"Enum value type with allowed values."
+type EnumType {
+    typeName: String!
+    allowedValues: [String!]!
+}
+
+"List value type."
+type ListType {
+    typeName: String!
+    elementType: ValueType!
+}
+
+"Input for value types."
+input ValueTypeInput @oneOf {
+    boolean: BooleanValueTypeInput
+    number: NumberValueTypeInput
+    string: StringValueTypeInput
+    position: PositionValueTypeInput
+    positionTag: PositionTagValueTypeInput
+    sceneObject: SceneObjectValueTypeInput
+    enum: EnumValueTypeInput
+    list: ListValueTypeInput
+}
+
+input BooleanValueTypeInput {
+    dummy: Boolean
+}
+
+input NumberValueTypeInput {
+    dummy: Boolean
+}
+
+input StringValueTypeInput {
+    dummy: Boolean
+}
+
+input PositionValueTypeInput {
+    dummy: Boolean
+}
+
+input PositionTagValueTypeInput {
+    dummy: Boolean
+}
+
+input SceneObjectValueTypeInput {
+    dummy: Boolean
+}
+
+input EnumValueTypeInput {
+    allowedValues: [String!]!
+}
+
+input ListValueTypeInput {
+    elementType: ValueTypeInput!
+}
+
+"The `DateTime` scalar represents an ISO-8601 compliant date time type."
+scalar DateTime
+
+scalar UUID

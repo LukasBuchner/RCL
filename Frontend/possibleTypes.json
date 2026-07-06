@@ -1,0 +1,30 @@
+{
+  "SelectorExpression": [
+    "SimpleVariableSelector",
+    "ConditionalSelector",
+    "ComplexSelector"
+  ],
+  "ValueType": [
+    "BooleanType",
+    "NumberType",
+    "StringType",
+    "PositionType",
+    "PositionTagType",
+    "SceneObjectType",
+    "EnumType",
+    "ListType"
+  ],
+  "PropertyValue": [
+    "BooleanValue",
+    "NumberValue",
+    "StringValue",
+    "PositionValue",
+    "PositionTagValue",
+    "SceneObjectValue"
+  ],
+  "Node": [
+    "SkillExecutionNode",
+    "TaskNode",
+    "RouterNode"
+  ]
+}

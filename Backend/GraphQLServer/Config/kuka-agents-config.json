@@ -1,0 +1,40 @@
+{
+  "agents": [
+    {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "name": "KUKA iiwa14 Robot 1",
+      "opcUaEndpoint": "opc.tcp://localhost:4840/kuka/iiwa14",
+      "description": "KUKA iiwa 14 collaborative robot in production cell 1",
+      "maxConcurrentExecutions": 1,
+      "connectionTimeout": 5000000,
+      "security": {
+        "useAnonymousAuthentication": true,
+        "useEncryption": false,
+        "autoAcceptUntrustedCertificates": true,
+        "validateServerCertificate": false
+      },
+      "skills": [
+        {
+          "skillDefinitionId": "456789ab-cdef-4ef0-0123-456789abcdef",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 45.0
+        },
+        {
+          "skillDefinitionId": "95f2a7a4-41a3-4b9f-8253-1c63bb19b4e5",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 30.0
+        },
+        {
+          "skillDefinitionId": "23456789-abcd-4cde-ef01-23456789abcd",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 10.0
+        },
+        {
+          "skillDefinitionId": "3456789a-bcde-4def-f012-3456789abcde",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 5.0
+        }
+      ]
+    }
+  ]
+}

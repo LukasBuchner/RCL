@@ -1,0 +1,104 @@
+{
+  "profiles": {
+    "GraphQLServer - Dummy Agents": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:5095/graphql",
+      "applicationUrl": "http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - Real Agents": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:5095/graphql",
+      "applicationUrl": "http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Production"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - Dummy Agents (HTTPS)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:7095/graphql",
+      "applicationUrl": "https://localhost:7095;http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - Real Agents (HTTPS)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:7095/graphql",
+      "applicationUrl": "https://localhost:7095;http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Production"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - Hybrid Agents": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:5095/graphql",
+      "applicationUrl": "http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Hybrid"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - Hybrid Agents (Network)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:5095/graphql",
+      "applicationUrl": "http://0.0.0.0:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Hybrid"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - Hybrid Agents (HTTPS)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:7095/graphql",
+      "applicationUrl": "https://localhost:7095;http://localhost:5095;http://0.0.0.0:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Hybrid"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - KUKA Agents": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:5095/graphql",
+      "applicationUrl": "http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Kuka"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "GraphQLServer - KUKA Agents (HTTPS)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:7095/graphql",
+      "applicationUrl": "https://localhost:7095;http://localhost:5095",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Kuka"
+      },
+      "workingDirectory": "$(ProjectDir)"
+    }
+  }
+}
+

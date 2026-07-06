@@ -1,0 +1,235 @@
+# Basic fields for different entity types that might be needed within Node
+fragment AgentFields on Agent {
+    id
+    name
+    representativeColor
+}
+
+fragment PropertyFields on Property {
+    name
+    direction
+    binding {
+      variableName
+      mode
+      transformExpression
+    }
+    value {
+      __typename
+      ... on BooleanValue {
+        boolValue
+        type {
+          typeName
+        }
+      }
+      ... on NumberValue {
+        numberValue
+        type {
+          typeName
+        }
+      }
+      ... on StringValue {
+        stringValue
+        type {
+          typeName
+        }
+      }
+      ... on PositionValue {
+        positionValue {
+          x
+          y
+          z
+          alpha
+          beta
+          gamma
+        }
+        type {
+          typeName
+        }
+      }
+      ... on PositionTagValue {
+        positionTagValue {
+          id
+          tag
+          position {
+            x
+            y
+            z
+            alpha
+            beta
+            gamma
+          }
+        }
+        type {
+          typeName
+        }
+      }
+      ... on SceneObjectValue {
+        sceneObjectValue {
+          id
+          name
+          position {
+            x
+            y
+            z
+            alpha
+            beta
+            gamma
+          }
+        }
+        type {
+          typeName
+        }
+      }
+    }
+}
+
+fragment SkillFields on Skill {
+    id
+    name
+    description
+    properties {
+        ...PropertyFields
+    }
+    agents {
+        ...AgentFields
+    }
+}
+
+# Node specific fragments
+fragment NodePositionFields on NodePosition {
+    x
+    y
+}
+
+fragment TaskFields on Task {
+    name
+    description
+    startTime
+    duration
+    isExecuting
+    progress
+}
+
+fragment SkillExecutionTaskFields on SkillExecutionTask {
+    name
+    description
+    startTime
+    duration
+    isExecuting
+    progress
+    skill {
+        ...SkillFields
+    }
+    agent {
+        ...AgentFields
+    }
+}
+
+# Fragments for the Node union members
+fragment TaskNodeFields on TaskNode {
+    id
+    position {
+        ...NodePositionFields
+    }
+    parentId
+    extent
+    width
+    height
+    selectable
+    selected
+    draggable
+    dragging
+    hidden
+    task {
+        ...TaskFields
+    }
+}
+
+fragment SkillExecutionNodeFields on SkillExecutionNode {
+    id
+    position {
+        ...NodePositionFields
+    }
+    parentId
+    extent
+    width
+    height
+    selectable
+    selected
+    draggable
+    dragging
+    hidden
+    skillExecutionTask {
+        ...SkillExecutionTaskFields
+    }
+}
+
+fragment RouterTaskFields on RouterTask {
+    name
+    description
+    startTime
+    duration
+    isExecuting
+    progress
+    selector {
+        __typename
+        ... on SimpleVariableSelector {
+            expression
+        }
+        ... on ExpressionSelector {
+            expression
+        }
+    }
+    branches {
+        name
+        condition
+        priority
+        targetNodeId
+    }
+    selectedBranchTargetNodeId
+    selectedBranchName
+    selectedAtUtc
+    manuallySelectedBranch
+}
+
+fragment RouterNodeFields on RouterNode {
+    id
+    position {
+        ...NodePositionFields
+    }
+    parentId
+    extent
+    width
+    height
+    selectable
+    selected
+    draggable
+    dragging
+    hidden
+    routerTask {
+        ...RouterTaskFields
+    }
+}
+
+# The main Node fragment using inline fragments for the union
+fragment NodeFields on Node {
+    __typename # Important for Apollo cache and type differentiation
+    ... on TaskNode {
+        ...TaskNodeFields
+    }
+    ... on SkillExecutionNode {
+        ...SkillExecutionNodeFields
+    }
+    ... on RouterNode {
+        ...RouterNodeFields
+    }
+}
+
+# Fragment for DependencyEdge
+fragment DependencyEdgeFields on DependencyEdge {
+    id
+    sourceId
+    targetId
+    sourceHandle
+    targetHandle
+}

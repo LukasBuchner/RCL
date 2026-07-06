@@ -1,0 +1,168 @@
+﻿using FHOOE.Freydis.Agents;
+using FHOOE.Freydis.Application.Services.Procedure.Orchestration.GraphBuilding.Utils;
+using FHOOE.Freydis.Application.Services.Common;
+using FHOOE.Freydis.Domain.Entities.Procedure;
+using FHOOE.Freydis.Domain.Entities.Common;
+using Microsoft.Extensions.Logging;
+using Moq;
+
+namespace FHOOE.Freydis.Application.Tests.Services.AgentCoordination.SkillMapping
+{
+    /// <summary>
+    /// Unit tests for <see cref="NodeAgentMapper"/> mapping logic and logging.
+    /// </summary>
+    public class NodeAgentMapperTests
+    {
+        private readonly Mock<ILogger<NodeAgentMapper>> _loggerMock = new();
+        private readonly Mock<IRclSharedQueryService> _queryServiceMock = new();
+
+        /// <summary>
+        /// When the node is not a <see cref="SkillExecutionNode"/>, <see cref="NodeAgentMapper.MapAsync"/> returns <c>null</c>.
+        /// </summary>
+        [Fact]
+        public async System.Threading.Tasks.Task MapAsync_NonSkillExecutionNode_ReturnsNull()
+        {
+            var mapper = new NodeAgentMapper(
+                [],
+                _loggerMock.Object,
+                _queryServiceMock.Object);
+
+            var taskNode = new TaskNode
+            {
+                Id = Guid.NewGuid(),
+                Position = new NodePosition { X = 0, Y = 0 },
+                Task = new FHOOE.Freydis.Domain.Entities.Procedure.Task
+                {
+                    Name = "Dummy",
+                    StartTime = 0,
+                    Duration = 0
+                }
+            };
+
+            var result = await mapper.MapAsync(taskNode);
+
+            Assert.Null(result);
+        }
+
+        /// <summary>
+        /// When an agent matches by ID, <see cref="NodeAgentMapper.MapAsync"/> returns the correct tuple.
+        /// </summary>
+        [Fact]
+        public async System.Threading.Tasks.Task MapAsync_SkillExecutionNode_WithMatchingAgent_ReturnsTuple()
+        {
+            var skillId = Guid.NewGuid();
+            var agentId = Guid.NewGuid();
+
+            var skill = new Skill
+            {
+                Id = skillId,
+                Name = "S",
+                Description = "Desc",
+                Properties = [],
+                AgentIds = []
+            };
+            var domainAgent = new Agent
+            {
+                Id = agentId,
+                Name = "A",
+                SkillIds = new List<Guid>(),
+                RepresentativeColor = "Blue"
+            };
+
+            var skillNode = new SkillExecutionNode
+            {
+                Id = Guid.NewGuid(),
+                Position = new NodePosition { X = 1, Y = 1 },
+                SkillExecutionTask = new SkillExecutionTask
+                {
+                    Name = "Exec",
+                    StartTime = 0,
+                    Duration = 1,
+                    Skill = skill,
+                    AgentId = agentId
+                }
+            };
+
+            var mockAgent = new Mock<IRuntimeAgent>();
+            mockAgent.SetupGet(a => a.Id).Returns(agentId);
+
+            // Setup the query service to return the agent (skill is now embedded)
+            _queryServiceMock.Setup(x => x.GetAgentByIdAsync(agentId))
+                .ReturnsAsync(domainAgent);
+
+            var mapper = new NodeAgentMapper(
+                [mockAgent.Object],
+                _loggerMock.Object,
+                _queryServiceMock.Object);
+
+            var tuple = await mapper.MapAsync(skillNode);
+
+            Assert.NotNull(tuple);
+            Assert.Equal(skill, tuple.Value.DomainSkill);
+            Assert.Equal(domainAgent, tuple.Value.DomainAgent);
+            Assert.Same(mockAgent.Object, tuple.Value.Agent);
+        }
+
+        /// <summary>
+        /// When no agent matches, <see cref="NodeAgentMapper.MapAsync"/> returns <c>null</c> and logs a warning.
+        /// </summary>
+        [Fact]
+        public async System.Threading.Tasks.Task MapAsync_SkillExecutionNode_NoAgentFound_LogsWarningAndReturnsNull()
+        {
+            var skillId = Guid.NewGuid();
+            var agentId = Guid.NewGuid();
+
+            var skill = new Skill
+            {
+                Id = skillId,
+                Name = "Missing",
+                Description = "Desc",
+                Properties = [],
+                AgentIds = []
+            };
+            var domainAgent = new Agent
+            {
+                Id = agentId,
+                Name = "X",
+                SkillIds = new List<Guid>(),
+                RepresentativeColor = "Red"
+            };
+
+            var skillNode = new SkillExecutionNode
+            {
+                Id = Guid.NewGuid(),
+                Position = new NodePosition { X = 2, Y = 2 },
+                SkillExecutionTask = new SkillExecutionTask
+                {
+                    Name = "Exec",
+                    StartTime = 0,
+                    Duration = 1,
+                    Skill = skill,
+                    AgentId = agentId
+                }
+            };
+
+            // Setup the query service to return the agent (skill is now embedded)
+            _queryServiceMock.Setup(x => x.GetAgentByIdAsync(agentId))
+                .ReturnsAsync(domainAgent);
+
+            var mapper = new NodeAgentMapper(
+                [], // No runtime agents available
+                _loggerMock.Object,
+                _queryServiceMock.Object);
+
+            var result = await mapper.MapAsync(skillNode);
+
+            Assert.Null(result);
+
+            _loggerMock.Verify(
+                x => x.Log(
+                    LogLevel.Warning,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("No runtime agent found")),
+                    It.IsAny<Exception>(),
+                    It.IsAny<Func<It.IsAnyType, Exception, string>>()!),
+                Times.Once);
+        }
+    }
+}

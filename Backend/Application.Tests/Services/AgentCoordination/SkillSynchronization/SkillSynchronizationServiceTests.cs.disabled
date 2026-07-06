@@ -1,0 +1,284 @@
+using FHOOE.Freydis.Agents;
+using FHOOE.Freydis.Application.Services.Agents.SkillSynchronization;
+using FHOOE.Freydis.Application.Services.Common;
+using FHOOE.Freydis.Domain;
+using FHOOE.Freydis.Domain.Entities.Common;
+using Microsoft.Extensions.Logging;
+using Moq;
+
+namespace FHOOE.Freydis.Application.Tests.Services.AgentCoordination.SkillSynchronization;
+
+/// <summary>
+/// Tests for the SkillSynchronizationService implementation.
+/// Follows TDD principles and ensures SOLID compliance.
+/// </summary>
+public class SkillSynchronizationServiceTests
+{
+    private readonly Mock<IRepository<Skill>> _mockSkillRepository;
+    private readonly Mock<IRepository<Agent>> _mockAgentRepository;
+    private readonly Mock<IRclSharedCrudService> _mockCrudService;
+    private readonly Mock<IRclSharedQueryService> _mockQueryService;
+    private readonly Mock<IAgentSkillRelationshipManager> _mockRelationshipManager;
+    private readonly Mock<ILogger<SkillSynchronizationService>> _mockLogger;
+    private readonly SkillSynchronizationService _service;
+
+    public SkillSynchronizationServiceTests()
+    {
+        _mockSkillRepository = new Mock<IRepository<Skill>>();
+        _mockAgentRepository = new Mock<IRepository<Agent>>();
+        _mockCrudService = new Mock<IRclSharedCrudService>();
+        _mockQueryService = new Mock<IRclSharedQueryService>();
+        _mockRelationshipManager = new Mock<IAgentSkillRelationshipManager>();
+        _mockLogger = new Mock<ILogger<SkillSynchronizationService>>();
+
+        _service = new SkillSynchronizationService(
+            _mockSkillRepository.Object,
+            _mockAgentRepository.Object,
+            _mockCrudService.Object,
+            _mockQueryService.Object,
+            _mockRelationshipManager.Object,
+            _mockLogger.Object
+        );
+    }
+
+    [Fact]
+    public async Task EnsureSkillExistsAsync_SkillDoesNotExist_CreatesNewSkill()
+    {
+        // Arrange
+        var skillId = Guid.NewGuid();
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>()
+        };
+
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skillId))
+            .ReturnsAsync((Skill?)null);
+        _mockCrudService.Setup(c => c.CreateSkillAsync(It.IsAny<Skill>()))
+            .ReturnsAsync(skill);
+
+        // Act
+        var result = await _service.EnsureSkillExistsAsync(skill);
+
+        // Assert
+        Assert.True(result);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skillId), Times.Once);
+        _mockCrudService.Verify(c => c.CreateSkillAsync(It.Is<Skill>(s => s.Id == skillId)), Times.Once);
+    }
+
+    [Fact]
+    public async Task EnsureSkillExistsAsync_SkillExistsAndUnchanged_ReturnsfalseWithoutUpdate()
+    {
+        // Arrange
+        var skillId = Guid.NewGuid();
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>()
+        };
+
+        var existingSkill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>()
+        };
+
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skillId))
+            .ReturnsAsync(existingSkill);
+
+        // Act
+        var result = await _service.EnsureSkillExistsAsync(skill);
+
+        // Assert
+        Assert.False(result);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skillId), Times.Once);
+        _mockCrudService.Verify(c => c.UpdateSkillAsync(It.IsAny<Skill>()), Times.Never);
+        _mockCrudService.Verify(c => c.CreateSkillAsync(It.IsAny<Skill>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task EnsureSkillExistsAsync_SkillExistsButChanged_UpdatesSkill()
+    {
+        // Arrange
+        var skillId = Guid.NewGuid();
+        var skill = new Skill
+        {
+            Id = skillId,
+            Name = "Updated Test Skill",
+            Description = "An updated test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>()
+        };
+
+        var existingSkill = new Skill
+        {
+            Id = skillId,
+            Name = "Test Skill",
+            Description = "A test skill",
+            Properties = new List<Property>(),
+            AgentIds = new List<Guid>()
+        };
+
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skillId))
+            .ReturnsAsync(existingSkill);
+        _mockCrudService.Setup(c => c.UpdateSkillAsync(It.IsAny<Skill>()))
+            .ReturnsAsync(true);
+
+        // Act
+        var result = await _service.EnsureSkillExistsAsync(skill);
+
+        // Assert
+        Assert.True(result);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skillId), Times.Once);
+        _mockCrudService.Verify(c => c.UpdateSkillAsync(It.Is<Skill>(s => 
+            s.Id == skillId && 
+            s.Name == "Updated Test Skill" && 
+            s.Description == "An updated test skill")), Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncAgentSkillsAsync_ValidAgent_SynchronizesAllSkills()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skill1Id = Guid.NewGuid();
+        var skill2Id = Guid.NewGuid();
+
+        var mockAgent = new Mock<IRuntimeAgent>();
+        mockAgent.Setup(a => a.Id).Returns(agentId);
+        mockAgent.Setup(a => a.Name).Returns("Test Agent");
+
+        var skills = new List<Skill>
+        {
+            new() { Id = skill1Id, Name = "Skill 1", Description = "First skill", Properties = new List<Property>(), AgentIds = new List<Guid>() },
+            new() { Id = skill2Id, Name = "Skill 2", Description = "Second skill", Properties = new List<Property>(), AgentIds = new List<Guid>() }
+        };
+
+        mockAgent.Setup(a => a.GetAvailableSkillsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(skills);
+
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skill1Id)).ReturnsAsync((Skill?)null);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skill2Id)).ReturnsAsync((Skill?)null);
+        _mockCrudService.Setup(c => c.CreateSkillAsync(It.IsAny<Skill>())).ReturnsAsync((Skill s) => s);
+
+        var relationshipResult = new AgentSkillRelationshipSyncResult
+        {
+            AgentId = agentId,
+            RelationshipsAdded = 2,
+            AddedSkillIds = new List<Guid> { skill1Id, skill2Id }
+        };
+
+        _mockRelationshipManager.Setup(r => r.SyncAgentRelationshipsAsync(
+            agentId, 
+            It.IsAny<IReadOnlyList<Guid>>(), 
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(relationshipResult);
+
+        // Act
+        var result = await _service.SyncAgentSkillsAsync(mockAgent.Object);
+
+        // Assert
+        Assert.True(result.IsSuccessful);
+        Assert.Equal(2, result.TotalSkillsProcessed);
+        Assert.Equal(2, result.SkillsCreated);
+        Assert.Equal(0, result.SkillsUpdated);
+        Assert.Equal(1, result.AgentRelationshipsUpdated);
+
+        mockAgent.Verify(a => a.GetAvailableSkillsAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockCrudService.Verify(c => c.CreateSkillAsync(It.IsAny<Skill>()), Times.Exactly(2));
+        _mockRelationshipManager.Verify(r => r.SyncAgentRelationshipsAsync(
+            agentId, 
+            It.Is<IReadOnlyList<Guid>>(list => list.Count == 2 && list.Contains(skill1Id) && list.Contains(skill2Id)), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidateAgentSkillConsistencyAsync_AgentNotFound_ReturnsFalse()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync((Agent?)null);
+
+        // Act
+        var result = await _service.ValidateAgentSkillConsistencyAsync(agentId);
+
+        // Assert
+        Assert.False(result);
+        _mockAgentRepository.Verify(r => r.GetByIdAsync(agentId), Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidateAgentSkillConsistencyAsync_AllSkillsExist_ReturnsTrue()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skill1Id = Guid.NewGuid();
+        var skill2Id = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { skill1Id, skill2Id },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill1 = new Skill { Id = skill1Id, Name = "Skill 1", Description = "First skill", Properties = new List<Property>(), AgentIds = new List<Guid>() };
+        var skill2 = new Skill { Id = skill2Id, Name = "Skill 2", Description = "Second skill", Properties = new List<Property>(), AgentIds = new List<Guid>() };
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync(agent);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skill1Id)).ReturnsAsync(skill1);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skill2Id)).ReturnsAsync(skill2);
+
+        // Act
+        var result = await _service.ValidateAgentSkillConsistencyAsync(agentId);
+
+        // Assert
+        Assert.True(result);
+        _mockAgentRepository.Verify(r => r.GetByIdAsync(agentId), Times.Once);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skill1Id), Times.Once);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skill2Id), Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidateAgentSkillConsistencyAsync_SomeSkillsDontExist_ReturnsFalse()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var skill1Id = Guid.NewGuid();
+        var skill2Id = Guid.NewGuid();
+
+        var agent = new Agent
+        {
+            Id = agentId,
+            Name = "Test Agent",
+            SkillIds = new List<Guid> { skill1Id, skill2Id },
+            RepresentativeColor = "#FF0000"
+        };
+
+        var skill1 = new Skill { Id = skill1Id, Name = "Skill 1", Description = "First skill", Properties = new List<Property>(), AgentIds = new List<Guid>() };
+
+        _mockAgentRepository.Setup(r => r.GetByIdAsync(agentId)).ReturnsAsync(agent);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skill1Id)).ReturnsAsync(skill1);
+        _mockSkillRepository.Setup(r => r.GetByIdAsync(skill2Id)).ReturnsAsync((Skill?)null);
+
+        // Act
+        var result = await _service.ValidateAgentSkillConsistencyAsync(agentId);
+
+        // Assert
+        Assert.False(result);
+        _mockAgentRepository.Verify(r => r.GetByIdAsync(agentId), Times.Once);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skill1Id), Times.Once);
+        _mockSkillRepository.Verify(r => r.GetByIdAsync(skill2Id), Times.Once);
+    }
+}

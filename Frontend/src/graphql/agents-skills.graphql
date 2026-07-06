@@ -1,0 +1,96 @@
+﻿query GetAgents {
+    agents {
+        ...AgentFields
+        skills {
+            ...SkillFields
+        }
+    }
+}
+
+query GetAgentById($id: UUID!) {
+    agentById(id: $id) {
+        ...AgentFields
+        skills {
+            ...SkillFields
+        }
+    }
+}
+
+# Query to get all skills
+query GetSkills {
+    skills {
+        ...SkillFields
+    }
+}
+
+query GetSkillById($skillId: UUID!) {
+    skillById(id: $skillId) {
+        ...SkillFields
+    }
+}
+
+# Query to get skills by agent ID
+query GetSkillsByAgentId($agentId: UUID!) {
+    agentById(id: $agentId) {
+        ...AgentFields
+        skills {
+            ...SkillFields
+        }
+    }
+}
+
+# Query to get agents by skill ID
+query GetAgentsBySkillId($skillId: UUID!) {
+    skillById(id: $skillId) {
+        ...SkillFields
+        agents {
+            ...AgentFields
+        }
+    }
+}
+
+# Agent mutations
+mutation CreateAgent($input: CreateAgentInput!) {
+    createAgent(input: $input) {
+        agent {
+            ...AgentFields
+        }
+    }
+}
+
+mutation UpdateAgent($input: UpdateAgentInput!) {
+    updateAgent(input: $input) {
+        agent {
+            ...AgentFields
+        }
+    }
+}
+
+mutation DeleteAgent($input: DeleteAgentInput!) {
+    deleteAgent(input: $input) {
+        boolean
+    }
+}
+
+# Skill mutations
+mutation CreateSkill($input: CreateSkillInput!) {
+    createSkill(input: $input) {
+        skill {
+            ...SkillFields
+        }
+    }
+}
+
+mutation UpdateSkill($input: UpdateSkillInput!) {
+    updateSkill(input: $input) {
+        skill {
+            ...SkillFields
+        }
+    }
+}
+
+mutation DeleteSkill($input: DeleteSkillInput!) {
+    deleteSkill(input: $input) {
+        boolean
+    }
+}

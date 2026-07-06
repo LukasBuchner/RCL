@@ -1,0 +1,96 @@
+# Fragments for SceneObject and PositionTag
+fragment SceneObjectFields on SceneObject {
+    id
+    name
+    position {
+        x
+        y
+        z
+        alpha
+        beta
+        gamma
+    }
+}
+
+fragment PositionTagFields on PositionTag {
+    id
+    tag
+    position {
+        x
+        y
+        z
+        alpha
+        beta
+        gamma
+    }
+}
+
+# Query to get all scene objects
+query GetSceneObjects {
+    sceneObjects {
+        ...SceneObjectFields
+    }
+}
+
+# Query to get all position tags
+query GetPositionTags {
+    positionTags {
+        ...PositionTagFields
+    }
+}
+
+# Query to get a specific scene object by ID
+query GetSceneObjectById($id: UUID!) {
+    sceneObjectById(id: $id) {
+        ...SceneObjectFields
+    }
+}
+
+# Query to get a specific position tag by ID
+query GetPositionTagById($id: UUID!) {
+    positionTagById(id: $id) {
+        ...PositionTagFields
+    }
+}
+
+# Scene object mutations
+mutation CreateSceneObject($input: CreateSceneObjectInput!) {
+    createSceneObject(input: $input) {
+        sceneObject {
+            ...SceneObjectFields
+        }
+    }
+}
+
+mutation UpdateSceneObject($input: UpdateSceneObjectInput!) {
+    updateSceneObject(input: $input) {
+        boolean
+    }
+}
+
+mutation DeleteSceneObject($input: DeleteSceneObjectInput!) {
+    deleteSceneObject(input: $input) {
+        boolean
+    }
+}
+
+# Position tag mutations
+mutation CreatePositionTag($input: CreatePositionTagInput!) {
+    createPositionTag(input: $input) {
+        positionTag {
+            ...PositionTagFields
+        }
+    }
+}
+
+mutation UpdatePositionTag($input: UpdatePositionTagInput!) {
+    updatePositionTag(input: $input) {
+        boolean
+    }
+}
+
+mutation DeletePositionTag($input: DeletePositionTagInput!) {
+    deletePositionTag(input: $input) {
+        boolean
+    }
+}
