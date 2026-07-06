@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>FHOOE.Freydis.Application</RootNamespace>
+        <AssemblyName>FHOOE.Freydis.Application</AssemblyName>
+        <LangVersion>14</LangVersion>
+        <!-- Required by the LibraryImport source generator (SYSLIB1054) used in
+             WindowsTimerResolutionService for winmm.dll P/Invoke calls.
+             LibraryImport generates compile-time marshalling stubs that use unsafe
+             pointers internally, even though the public API surface remains safe. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="FHOOE.Freydis.Application.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Agents\Agents.csproj"/>
+        <ProjectReference Include="..\Domain\Domain.csproj"/>
+        <ProjectReference Include="..\Scheduling\Scheduling.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="DynamicExpresso.Core" Version="2.19.0"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.7"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.7"/>
+        <PackageReference Include="System.Reactive" Version="6.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Services\Procedure\Layout\NodeLayoutService.cs"/>
+        <Compile Remove="Services\Procedure\NodeCreation\IParentTaskAdaptationService.cs"/>
+        <Compile Remove="Services\Scheduling\Support\Persistence\InMemoryExecutionStateUpdateService.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Services\AgentCoordination\Orchestration\"/>
+        <Folder Include="Services\AgentCoordination\Synchronization\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+            <HintPath>..\..\..\..\..\..\Program Files\dotnet\shared\Microsoft.AspNetCore.App\10.0.1\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
+</Project>

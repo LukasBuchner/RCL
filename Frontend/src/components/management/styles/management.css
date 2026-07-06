@@ -1,0 +1,218 @@
+/* Agent Management Styles */
+.agent-color-indicator {
+  transition: transform 0.2s ease;
+}
+
+.agents-grid {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.agents-grid:not(:hover) {
+  scrollbar-width: none;
+}
+
+.agents-grid:not(:hover)::-webkit-scrollbar {
+  display: none;
+}
+
+.agents-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agents-grid::-webkit-scrollbar-track {
+  background: var(--app-border);
+  border-radius: 3px;
+}
+
+.agents-grid::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 3px;
+}
+
+.agents-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text);
+}
+
+/* Skills Management Styles */
+.skills-grid {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.skills-grid:not(:hover) {
+  scrollbar-width: none;
+}
+
+.skills-grid:not(:hover)::-webkit-scrollbar {
+  display: none;
+}
+
+.skills-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.skills-grid::-webkit-scrollbar-track {
+  background: var(--app-border);
+  border-radius: 3px;
+}
+
+.skills-grid::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 3px;
+}
+
+.skills-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text);
+}
+
+/* Position Tags Styles */
+.position-tags-grid {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.position-tags-grid:not(:hover) {
+  scrollbar-width: none;
+}
+
+.position-tags-grid:not(:hover)::-webkit-scrollbar {
+  display: none;
+}
+
+.position-tags-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.position-tags-grid::-webkit-scrollbar-track {
+  background: var(--app-border);
+  border-radius: 3px;
+}
+
+.position-tags-grid::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 3px;
+}
+
+.position-tags-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text);
+}
+
+.tag-indicator {
+  width: 32px;
+  height: 32px;
+  background: var(--bs-warning-bg-subtle);
+  border: 2px solid var(--app-warning);
+  transition: transform 0.2s ease;
+}
+
+.position-tag-card:hover .tag-indicator {
+  transform: scale(1.1);
+}
+
+/* Scene Objects Styles */
+.scene-objects-grid {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.scene-objects-grid:not(:hover) {
+  scrollbar-width: none;
+}
+
+.scene-objects-grid:not(:hover)::-webkit-scrollbar {
+  display: none;
+}
+
+.scene-objects-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scene-objects-grid::-webkit-scrollbar-track {
+  background: var(--app-border);
+  border-radius: 3px;
+}
+
+.scene-objects-grid::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 3px;
+}
+
+.scene-objects-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text);
+}
+
+.object-indicator {
+  width: 32px;
+  height: 32px;
+  background: var(--bs-info-bg-subtle);
+  border: 2px solid var(--app-info);
+  transition: transform 0.2s ease;
+}
+
+.scene-object-card:hover .object-indicator {
+  transform: scale(1.1);
+}
+
+/* Variables Styles */
+.variables-grid {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.variables-grid:not(:hover) {
+  scrollbar-width: none;
+}
+
+.variables-grid:not(:hover)::-webkit-scrollbar {
+  display: none;
+}
+
+.variables-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.variables-grid::-webkit-scrollbar-track {
+  background: var(--app-border);
+  border-radius: 3px;
+}
+
+.variables-grid::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 3px;
+}
+
+.variables-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text);
+}
+
+.variable-type-badge {
+  transition: transform 0.2s ease;
+}
+
+/* Common Management Styles */
+.empty-state {
+  background: var(--app-surface) !important;
+  border: 2px dashed var(--app-border) !important;
+}
+
+/* Dark theme adjustments for empty state */
+[data-theme="dark"] .empty-state {
+  background: var(--app-surface-variant) !important;
+}
+
+/* Placeholder animations and consistent styling */
+.placeholder-glow .placeholder {
+  animation: placeholder-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes placeholder-glow {
+  50% {
+    opacity: 0.5;
+  }
+}

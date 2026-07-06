@@ -1,0 +1,180 @@
+root = true
+
+[*]
+charset = utf-8-bom
+end_of_line = lf
+trim_trailing_whitespace = false
+insert_final_newline = false
+indent_style = space
+indent_size = 4
+
+# =========================
+# GLOBAL STRICTNESS
+# =========================
+dotnet_analyzer_diagnostic.severity = warning
+dotnet_analyzer_diagnostic.category-Style.severity = suggestion
+dotnet_analyzer_diagnostic.category-Reliability.severity = warning
+dotnet_analyzer_diagnostic.category-Security.severity = error
+
+# =========================
+# C# STRICT RULES
+# =========================
+[*.cs]
+
+# Null safety (critical)
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8618.severity = error
+
+# Async correctness
+dotnet_diagnostic.CS4014.severity = error
+
+# Closure / lambda issues
+dotnet_diagnostic.CS1673.severity = error
+
+# Unused / dead code
+dotnet_diagnostic.CS0168.severity = error
+dotnet_diagnostic.CS0219.severity = error
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0060.severity = warning
+
+# Misc correctness
+dotnet_diagnostic.CS8073.severity = warning
+
+# =========================
+# Microsoft .NET style
+# =========================
+csharp_new_line_before_members_in_object_initializers = false
+csharp_preferred_modifier_order = public, private, protected, internal, file, new, static, abstract, virtual, sealed, readonly, override, extern, unsafe, volatile, async, required:suggestion
+csharp_style_prefer_utf8_string_literals = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+
+dotnet_style_parentheses_in_arithmetic_binary_operators = never_if_unnecessary:none
+dotnet_style_parentheses_in_other_binary_operators = always_for_clarity:none
+dotnet_style_parentheses_in_relational_binary_operators = never_if_unnecessary:none
+
+dotnet_style_predefined_type_for_locals_parameters_members = true:suggestion
+dotnet_style_predefined_type_for_member_access = true:suggestion
+
+dotnet_style_qualification_for_event = false:suggestion
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:suggestion
+
+# =========================
+# Unity naming rules
+# =========================
+dotnet_naming_rule.unity_serialized_field_rule.import_to_resharper = True
+dotnet_naming_rule.unity_serialized_field_rule.resharper_description = Unity serialized field
+dotnet_naming_rule.unity_serialized_field_rule.resharper_guid = 5f0fdb63-c892-4d2c-9324-15c80b22a7ef
+dotnet_naming_rule.unity_serialized_field_rule.severity = warning
+dotnet_naming_rule.unity_serialized_field_rule.style = lower_camel_case_style
+dotnet_naming_rule.unity_serialized_field_rule.symbols = unity_serialized_field_symbols
+
+dotnet_naming_style.lower_camel_case_style.capitalization = camel_case
+
+dotnet_naming_symbols.unity_serialized_field_symbols.applicable_accessibilities = *
+dotnet_naming_symbols.unity_serialized_field_symbols.applicable_kinds =
+dotnet_naming_symbols.unity_serialized_field_symbols.resharper_applicable_kinds = unity_serialised_field
+dotnet_naming_symbols.unity_serialized_field_symbols.resharper_required_modifiers = instance
+
+# =========================
+# ReSharper general
+# =========================
+resharper_apply_auto_detected_rules = false
+resharper_autodetect_indent_settings = true
+resharper_formatter_off_tag = @formatter:off
+resharper_formatter_on_tag = @formatter:on
+resharper_formatter_tags_enabled = true
+resharper_show_autodetect_configure_formatting_tip = false
+resharper_use_indent_from_vs = false
+
+# =========================
+# ReSharper inspections
+# =========================
+resharper_arrange_redundant_parentheses_highlighting = hint
+resharper_arrange_this_qualifier_highlighting = hint
+resharper_arrange_type_member_modifiers_highlighting = hint
+resharper_arrange_type_modifiers_highlighting = hint
+
+resharper_built_in_type_reference_style_for_member_access_highlighting = hint
+resharper_built_in_type_reference_style_highlighting = hint
+
+resharper_redundant_base_qualifier_highlighting = warning
+
+resharper_suggest_var_or_type_built_in_types_highlighting = hint
+resharper_suggest_var_or_type_elsewhere_highlighting = hint
+resharper_suggest_var_or_type_simple_types_highlighting = hint
+
+resharper_mvc_action_not_resolved_highlighting = warning
+resharper_mvc_area_not_resolved_highlighting = warning
+resharper_mvc_controller_not_resolved_highlighting = warning
+resharper_mvc_masterpage_not_resolved_highlighting = warning
+resharper_mvc_partial_view_not_resolved_highlighting = warning
+resharper_mvc_template_not_resolved_highlighting = warning
+resharper_mvc_view_component_not_resolved_highlighting = warning
+resharper_mvc_view_component_view_not_resolved_highlighting = warning
+resharper_mvc_view_not_resolved_highlighting = warning
+
+resharper_razor_assembly_not_resolved_highlighting = warning
+
+resharper_web_config_module_not_resolved_highlighting = warning
+resharper_web_config_type_not_resolved_highlighting = warning
+resharper_web_config_wrong_module_highlighting = warning
+
+# =========================
+# TEST & BENCHMARK PROJECT OVERRIDES
+# =========================
+# Relaxed severity for rules that are disproportionately noisy in test/benchmark
+# code where the patterns are acceptable (e.g. test helpers not needing IDisposable,
+# test classes not needing to be sealed, xUnit underscores in method names).
+[{Agents.Tests,Application.Tests,GraphQLServer.Tests,Infrastructure.Tests,Scheduling.Tests,Application.Benchmarks,Scheduling.Benchmarks}/**.cs]
+dotnet_diagnostic.CA1707.severity = suggestion # Underscores in test method names (xUnit convention)
+dotnet_diagnostic.CA1848.severity = suggestion # LoggerMessage delegates
+dotnet_diagnostic.CA1873.severity = suggestion # Expensive log arguments
+dotnet_diagnostic.CA1822.severity = suggestion # Make static
+dotnet_diagnostic.CA2201.severity = suggestion # Reserved exception types
+dotnet_diagnostic.CA1001.severity = suggestion # IDisposable
+dotnet_diagnostic.CA1852.severity = suggestion # Seal types
+dotnet_diagnostic.CA1826.severity = suggestion # Use indexer
+dotnet_diagnostic.CA2263.severity = suggestion # Generic overload
+dotnet_diagnostic.CA1860.severity = suggestion # Char Contains
+dotnet_diagnostic.CA1859.severity = suggestion # Concrete type
+dotnet_diagnostic.CA1816.severity = suggestion # SuppressFinalize
+dotnet_diagnostic.CA1854.severity = suggestion # TryGetValue
+dotnet_diagnostic.CA1510.severity = suggestion # ThrowIfNull
+dotnet_diagnostic.CA1861.severity = suggestion # Constant array
+dotnet_diagnostic.CA1304.severity = suggestion # CultureInfo
+dotnet_diagnostic.CA1311.severity = suggestion # StringComparison
+
+# =========================
+# File-specific indentation
+# =========================
+[{*.yaml,*.yml}]
+indent_style = space
+indent_size = 2
+
+[{tsconfig.app.json,tsconfig.base.json,tsconfig.e2e.json,tsconfig.editor.json,tsconfig.json,tsconfig.lib.json,tsconfig.spec.json,tsconfig.test.json}]
+indent_style = space
+indent_size = 2
+
+[{*.graphqlconfig,*.graphqlrc,*.har,*.jsb2,*.jsb3,*.json,*.jsonc,*.postman_collection,*.postman_collection.json,*.postman_environment,*.postman_environment.json,.babelrc,.eslintrc,.prettierrc,.stylelintrc,.ws-context,jest.config}]
+indent_style = space
+indent_size = 2
+
+[*.asmdef]
+indent_style = space
+indent_size = 2
+
+[*.asmref]
+indent_style = space
+indent_size = 2
+
+[*.{appxmanifest,asax,ascx,aspx,axaml,blockshader,c,c++,c++m,cc,ccm,cginc,compute,cp,cpp,cppm,cs,cshtml,cu,cuh,cxx,cxxm,dtd,fs,fsi,fsscript,fsx,fx,fxh,h,h++,hh,hlsl,hlsli,hlslinc,hp,hpp,hxx,icc,inc,inl,ino,ipp,ixx,master,ml,mli,mpp,mq4,mq5,mqh,mxx,nuspec,paml,pssl,pssli,razor,resw,resx,shader,shaderFoundry,skin,tcc,tpp,urtshader,usf,ush,uxml,vb,xaml,xamlx,xoml,xsd}]
+indent_style = space
+indent_size = 4
+tab_width = 4

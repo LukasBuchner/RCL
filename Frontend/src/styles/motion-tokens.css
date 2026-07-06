@@ -1,0 +1,185 @@
+/**
+ * Motion Design Tokens
+ * 
+ * Centralized animation and interaction tokens using CSS custom properties.
+ * These tokens follow the CSS Custom Properties specification and integrate
+ * with Bootstrap's design system.
+ */
+
+:root {
+  /* ===========================================
+           * Animation Durations (following Material Design)
+           * =========================================== */
+  --motion-duration-instant: 0.1s;
+  --motion-duration-fast: 0.15s;
+  --motion-duration-normal: 0.2s;
+  --motion-duration-slow: 0.3s;
+  --motion-duration-slower: 0.4s;
+
+  /* ===========================================
+           * Easing Functions (CSS custom cubic-bezier)
+           * =========================================== */
+  --motion-ease-linear: linear;
+  --motion-ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --motion-ease-in: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  --motion-ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --motion-ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ===========================================
+           * Scale Values (consistent micro-interactions)
+           * =========================================== */
+  --motion-scale-none: 1;
+  --motion-scale-subtle: 1.01;
+  --motion-scale-small: 1.02;
+  --motion-scale-medium: 1.05;
+  --motion-scale-large: 1.1;
+
+  --motion-scale-press: 0.98;
+  --motion-scale-press-small: 0.99;
+
+  /* ===========================================
+           * Movement Values (consistent spacing)
+           * =========================================== */
+  --motion-translate-none: 0px;
+  --motion-translate-subtle: -1px;
+  --motion-translate-small: -2px;
+  --motion-translate-medium: -4px;
+  --motion-translate-large: -8px;
+
+  /* ===========================================
+           * Elevation Shadows (Bootstrap-compatible)
+           * =========================================== */
+  --motion-shadow-none: none;
+  --motion-shadow-base: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --motion-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --motion-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --motion-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.12);
+  --motion-shadow-medium: 0 6px 12px rgba(0, 0, 0, 0.15);
+  --motion-shadow-large: 0 8px 16px rgba(0, 0, 0, 0.15);
+  --motion-shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+
+  /* Focus shadows (using Bootstrap primary color) */
+  --motion-shadow-focus: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  --motion-shadow-focus-danger: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+  --motion-shadow-focus-success: 0 0 0 0.25rem rgba(25, 135, 84, 0.25);
+
+  /* ===========================================
+           * Z-Index Layers (consistent stacking)
+           * =========================================== */
+  --motion-z-base: 1;
+  --motion-z-hover: 10;
+  --motion-z-focus: 20;
+  --motion-z-modal: 1050; /* Bootstrap modal z-index */
+  --motion-z-tooltip: 1070; /* Bootstrap tooltip z-index */
+
+  /* ===========================================
+           * Stagger Delays (for list animations)
+           * =========================================== */
+  --motion-stagger-base: 0.1s;
+  --motion-stagger-fast: 0.05s;
+  --motion-stagger-slow: 0.2s;
+
+  /* ===========================================
+           * Border Radius (consistent with Bootstrap)
+           * =========================================== */
+  --motion-radius-sm: var(--bs-border-radius-sm, 0.2rem);
+  --motion-radius: var(--bs-border-radius, 0.375rem);
+  --motion-radius-lg: var(--bs-border-radius-lg, 0.5rem);
+  --motion-radius-xl: var(--bs-border-radius-xl, 1rem);
+  --motion-radius-pill: var(--bs-border-radius-pill, 50rem);
+
+  /* ===========================================
+           * Background Colors for Motion States
+           * =========================================== */
+  --motion-bg-hover-subtle: rgba(0, 0, 0, 0.04);
+  --motion-bg-active-subtle: rgba(0, 0, 0, 0.08);
+  --motion-bg-hover-primary: rgba(13, 110, 253, 0.08);
+  --motion-bg-active-primary: rgba(13, 110, 253, 0.12);
+}
+
+/* Dark mode background colors */
+[data-bs-theme="dark"] {
+  --motion-bg-hover-subtle: rgba(255, 255, 255, 0.04);
+  --motion-bg-active-subtle: rgba(255, 255, 255, 0.08);
+  --motion-bg-hover-primary: rgba(13, 110, 253, 0.16);
+  --motion-bg-active-primary: rgba(13, 110, 253, 0.24);
+}
+
+/* ===========================================
+ * Utility Classes for Quick Application
+ * =========================================== */
+
+/* Motion list item base styles */
+.motion-list-item {
+  background-color: transparent;
+  transition: background-color var(--motion-duration-fast)
+    var(--motion-ease-out);
+}
+
+/* Hover lift effects */
+.motion-hover-subtle {
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.motion-hover-subtle:hover {
+  transform: translateY(var(--motion-translate-subtle))
+    scale(var(--motion-scale-subtle));
+  box-shadow: var(--motion-shadow);
+  z-index: var(--motion-z-hover);
+}
+
+.motion-hover-medium {
+  transition:
+    transform var(--motion-duration-normal) var(--motion-ease-out),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.motion-hover-medium:hover {
+  transform: translateY(var(--motion-translate-small))
+    scale(var(--motion-scale-small));
+  box-shadow: var(--motion-shadow-lg);
+  z-index: var(--motion-z-hover);
+}
+
+/* Focus styles */
+.motion-focus {
+  transition:
+    outline var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.motion-focus:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+  box-shadow: var(--motion-shadow-focus);
+  z-index: var(--motion-z-focus);
+}
+
+/* Press effects */
+.motion-press:active {
+  transform: scale(var(--motion-scale-press));
+  transition: transform var(--motion-duration-instant) var(--motion-ease-out);
+}
+
+/* Reduced motion support (accessibility) */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-instant: 0.01ms;
+    --motion-duration-fast: 0.01ms;
+    --motion-duration-normal: 0.01ms;
+    --motion-duration-slow: 0.01ms;
+    --motion-duration-slower: 0.01ms;
+    --motion-stagger-base: 0.01ms;
+    --motion-stagger-fast: 0.01ms;
+    --motion-stagger-slow: 0.01ms;
+  }
+
+  .motion-hover-subtle,
+  .motion-hover-medium,
+  .motion-focus,
+  .motion-press {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,334 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ── Detect changed paths ──────────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'Backend/**'
+            frontend:
+              - 'Frontend/**'
+
+  # ── Backend: Lint, Build & Test ─────────────────────────────────────
+  backend:
+    name: Backend — Lint, Build & Test
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 (preview)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: preview
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Backend/**/*.csproj', 'Backend/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        id: restore
+        run: dotnet restore Backend/Freydis.sln
+
+      - name: Lint (dotnet format)
+        id: lint
+        run: dotnet format Backend/Freydis.sln --verify-no-changes --verbosity diagnostic
+
+      - name: Build
+        id: build
+        run: dotnet build Backend/Freydis.sln --configuration Release --no-restore
+
+      - name: Test with coverage
+        id: test
+        run: >
+          dotnet test Backend/Freydis.sln
+          --configuration Release
+          --no-build
+          --verbosity normal
+          --filter "FullyQualifiedName!~Benchmarks"
+          --collect:"XPlat Code Coverage"
+          --results-directory Backend/TestResults
+          --logger "trx;LogFileName=test-results.trx"
+          --logger "console;verbosity=normal"
+          --blame-hang
+          --blame-hang-timeout 3m
+          --blame-hang-dump-type full
+          -- RunConfiguration.TreatNoTestsAsError=true
+
+      - name: Surface failing tests
+        if: failure() && steps.test.outcome == 'failure'
+        run: |
+          echo "### ❌ Failing tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 - <<'PY' >> $GITHUB_STEP_SUMMARY
+          import glob, xml.etree.ElementTree as ET, html
+          ns = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
+          any_fail = False
+          for path in sorted(glob.glob('Backend/TestResults/**/*.trx', recursive=True)):
+              tree = ET.parse(path)
+              for r in tree.findall('.//t:UnitTestResult[@outcome="Failed"]', ns):
+                  any_fail = True
+                  name = r.get('testName', '?')
+                  msg_el = r.find('.//t:Message', ns)
+                  trc_el = r.find('.//t:StackTrace', ns)
+                  msg = (msg_el.text or '').strip() if msg_el is not None else ''
+                  trc = (trc_el.text or '').strip() if trc_el is not None else ''
+                  print(f"<details><summary><code>{html.escape(name)}</code></summary>\n")
+                  print(f"**Message**\n\n```\n{msg}\n```\n")
+                  if trc:
+                      print(f"**Stack trace**\n\n```\n{trc}\n```\n")
+                  print("</details>\n")
+          if not any_fail:
+              print("_No failing tests in trx files (MSB4181 or test host crash — see logs above)._")
+          PY
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: Backend/TestResults/**/*.trx
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: Backend/TestResults/**/coverage.cobertura.xml
+          retention-days: 14
+
+      - name: Upload hang dumps
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-hang-dumps
+          path: |
+            Backend/TestResults/**/*.dmp
+            Backend/TestResults/**/Sequence_*.xml
+            Backend/TestResults/**/hangdump_*.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Backend — Lint, Build & Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Restore | ${{ steps.restore.outcome == 'success' && '✅' || steps.restore.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint (dotnet format) | ${{ steps.lint.outcome == 'success' && '✅' || steps.lint.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ steps.build.outcome == 'success' && '✅' || steps.build.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ steps.test.outcome == 'success' && '✅' || steps.test.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          COVERAGE_FILES=$(find Backend/TestResults -name 'coverage.cobertura.xml' 2>/dev/null | wc -l)
+          if [ "$COVERAGE_FILES" -gt 0 ]; then
+            echo "📊 Coverage reports: **${COVERAGE_FILES}** file(s) uploaded" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ── Backend: Integration Tests ────────────────────────────────────────
+  backend-integration:
+    name: Backend — Integration Tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: FreydisDB
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 (preview)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: preview
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Backend/**/*.csproj', 'Backend/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Backend/Freydis.sln
+
+      - name: Build
+        run: dotnet build Backend/Freydis.sln --configuration Release --no-restore
+
+      - name: Run integration tests
+        id: integration
+        env:
+          RUN_INTEGRATION_TESTS: 'true'
+          ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=FreydisDB;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Backend/Infrastructure.Tests/Infrastructure.Tests.csproj
+          --configuration Release
+          --no-build
+          --verbosity normal
+          --results-directory Backend/TestResults
+          --logger "trx;LogFileName=integration-results.trx"
+          --logger "console;verbosity=normal"
+          --blame-hang
+          --blame-hang-timeout 3m
+          --blame-hang-dump-type full
+
+      - name: Surface failing integration tests
+        if: failure() && steps.integration.outcome == 'failure'
+        run: |
+          echo "### ❌ Failing integration tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 - <<'PY' >> $GITHUB_STEP_SUMMARY
+          import glob, xml.etree.ElementTree as ET, html
+          ns = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
+          any_fail = False
+          for path in sorted(glob.glob('Backend/TestResults/**/*.trx', recursive=True)):
+              tree = ET.parse(path)
+              for r in tree.findall('.//t:UnitTestResult[@outcome="Failed"]', ns):
+                  any_fail = True
+                  name = r.get('testName', '?')
+                  msg_el = r.find('.//t:Message', ns)
+                  trc_el = r.find('.//t:StackTrace', ns)
+                  msg = (msg_el.text or '').strip() if msg_el is not None else ''
+                  trc = (trc_el.text or '').strip() if trc_el is not None else ''
+                  print(f"<details><summary><code>{html.escape(name)}</code></summary>\n")
+                  print(f"**Message**\n\n```\n{msg}\n```\n")
+                  if trc:
+                      print(f"**Stack trace**\n\n```\n{trc}\n```\n")
+                  print("</details>\n")
+          if not any_fail:
+              print("_No failing tests in trx files._")
+          PY
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: Backend/TestResults/**/*.trx
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload integration hang dumps
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-hang-dumps
+          path: |
+            Backend/TestResults/**/*.dmp
+            Backend/TestResults/**/Sequence_*.xml
+            Backend/TestResults/**/hangdump_*.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Backend — Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ steps.integration.outcome == 'success' && '✅' || steps.integration.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🗄️ PostgreSQL 16 service container used" >> $GITHUB_STEP_SUMMARY
+
+  # ── Frontend: Lint, Build & Test ────────────────────────────────────
+  frontend:
+    name: Frontend — Lint, Build & Test
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: Frontend/node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('Frontend/package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: Frontend
+
+      - name: Lint (ESLint)
+        id: lint
+        run: npm run lint
+        working-directory: Frontend
+
+      - name: Format check (Prettier)
+        id: format
+        run: npx prettier --check "src/**/*.{ts,tsx,css}"
+        working-directory: Frontend
+
+      - name: Build
+        id: build
+        run: npm run build
+        working-directory: Frontend
+
+      - name: Test
+        id: test
+        run: npm test
+        working-directory: Frontend
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Frontend — Lint, Build & Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint (ESLint) | ${{ steps.lint.outcome == 'success' && '✅' || steps.lint.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Format (Prettier) | ${{ steps.format.outcome == 'success' && '✅' || steps.format.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ steps.build.outcome == 'success' && '✅' || steps.build.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ steps.test.outcome == 'success' && '✅' || steps.test.outcome == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY

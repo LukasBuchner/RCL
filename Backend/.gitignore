@@ -1,0 +1,32 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+/GraphQLServer/logs/
+.vs/
+.idea/
+
+# .NET test outputs
+TestResults/
+*.trx
+
+# BenchmarkDotNet outputs
+BenchmarkDotNet.Artifacts/
+
+# Coverage outputs
+*.coverage
+*.coveragexml
+coverage.cobertura.xml
+
+# Private certificates and keys
+GraphQLServer/CertificateStores/App/private/
+*.pfx
+*.p12
+*.key
+
+# Certificate store public cert artifacts
+GraphQLServer/CertificateStores/**/*.der
+
+# Benchmark rerun notes/outputs
+Scheduling.Benchmarks/*.txt

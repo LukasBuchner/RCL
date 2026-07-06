@@ -1,0 +1,38 @@
+query GetNodes($where: NodeFilterInput) {
+    nodes(where: $where) {
+        ...NodeFields
+    }
+}
+
+query GetNodeById($id: UUID!) {
+    nodeById(id: $id) {
+        ...NodeFields
+    }
+}
+
+# Remember NodeInput is a oneOf type!
+mutation CreateNode($input: CreateNodeInput!) {
+    createNode(input: $input) {
+        node {
+            ...NodeFields
+        }
+    }
+}
+
+mutation UpdateNode($input: UpdateNodeInput!) {
+    updateNode(input: $input) {
+        boolean
+    }
+}
+
+mutation DeleteNode($input: DeleteNodeInput!) {
+    deleteNode(input: $input) {
+        boolean
+    }
+}
+
+subscription OnNodesChanged {
+    nodesChanged {
+        ...NodeFields
+    }
+}

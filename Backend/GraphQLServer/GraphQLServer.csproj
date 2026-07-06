@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>14</LangVersion>
+        <AssemblyName>FHOOE.Freydis.GraphQLServer</AssemblyName>
+        <RootNamespace>FHOOE.Freydis.GraphQLServer</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(ImplicitUsings)' == 'enable'">
+        <Using Include="FHOOE.Freydis.GraphQLServer"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="GreenDonut" Version="15.1.16"/>
+        <PackageReference Include="HotChocolate.AspNetCore" Version="15.1.16"/>
+        <PackageReference Include="HotChocolate.AspNetCore.CommandLine" Version="15.1.16"/>
+        <PackageReference Include="HotChocolate.Data" Version="15.1.16"/>
+        <PackageReference Include="HotChocolate.Subscriptions" Version="15.1.16"/>
+        <PackageReference Include="HotChocolate.Types.Analyzers" Version="15.1.16">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Npgsql" Version="9.0.3"/>
+        <PackageReference Include="Dapper" Version="2.1.35"/>
+        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0"/>
+        <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1"/>
+        <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0"/>
+        <PackageReference Include="Serilog.Sinks.Async" Version="1.5.0"/>
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
+        <PackageReference Include="Serilog.Sinks.File" Version="7.0.0"/>
+        <PackageReference Include="System.Reactive" Version="6.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Application\Application.csproj"/>
+        <ProjectReference Include="..\Domain\Domain.csproj"/>
+        <ProjectReference Include="..\Infrastructure\Infrastructure.csproj"/>
+        <ProjectReference Include="..\Agents\Agents.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="logs\runs\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Remove="logs\runs\run-20260306-122021.json"/>
+        <Content Remove="logs\runs\run-20260306-124913.json"/>
+    </ItemGroup>
+
+</Project>

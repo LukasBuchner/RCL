@@ -1,0 +1,864 @@
+using System.Reactive.Subjects;
+using FHOOE.Freydis.Agents;
+using FHOOE.Freydis.Agents.Agents;
+using FHOOE.Freydis.Application.Services.Execution.Dependencies;
+using FHOOE.Freydis.Application.Services.Execution.Events;
+using FHOOE.Freydis.Application.Services.Execution.Initialization;
+using FHOOE.Freydis.Application.Services.Execution.Monitoring;
+using FHOOE.Freydis.Application.Services.Execution.Pipeline;
+using FHOOE.Freydis.Domain.Entities.Variables;
+using FHOOE.Freydis.Application.Services.Execution.Rescheduling;
+using FHOOE.Freydis.Application.Services.Execution.StateManagement;
+using FHOOE.Freydis.Application.Services.Execution.Support.Logging;
+using FHOOE.Freydis.Application.Services.Execution.Triggering;
+using FHOOE.Freydis.Application.Services.Execution.Utilities;
+using FHOOE.Freydis.Application.Services.Scheduling.Models;
+using FHOOE.Freydis.Application.Services.Scheduling.Pipeline;
+using FHOOE.Freydis.Application.Services.Scheduling.Processing.Hierarchy;
+using FHOOE.Freydis.Domain.Entities.Procedure;
+using FHOOE.Freydis.Domain.Entities.Common;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+
+namespace FHOOE.Freydis.Application.Tests.Services.Execution.Pipeline;
+
+/// <summary>
+/// Integration tests for event-driven execution in ExecutionOrchestrator.
+/// Tests the complete flow from dependency analysis to skill execution completion.
+/// </summary>
+public class EventDrivenExecutionIntegrationTests
+{
+	private readonly Mock<ILogger<ExecutionOrchestrator>> _loggerMock;
+	private readonly TimeProvider _timeProvider;
+	private readonly Mock<IExecutionInitializer> _executionInitializerMock;
+	private readonly Mock<ISkillExecutionStateManager> _stateManagerMock;
+	private readonly Mock<IExecutionStateTransitionService> _stateTransitionServiceMock;
+	private readonly Mock<IExecutionEventPublisher> _eventPublisherMock;
+	private readonly Mock<IExecutionProgressMonitor> _progressMonitorMock;
+	private readonly Mock<IDependencyGraphAnalyzer> _dependencyGraphAnalyzerMock;
+	private readonly Mock<IExecutionTriggerService> _executionTriggerServiceMock;
+	private readonly SkillExecutionEventBus _eventBus;
+	private readonly Mock<ITimingCalculationOrchestrator> _timingCalculationOrchestratorMock;
+
+	private readonly Subject<IReadOnlyList<Node>> _nodeSubject;
+	private readonly Subject<IReadOnlyList<DependencyEdge>> _edgeSubject;
+
+	public EventDrivenExecutionIntegrationTests()
+	{
+		_loggerMock = new Mock<ILogger<ExecutionOrchestrator>>();
+		_timeProvider = TimeProvider.System;
+		_executionInitializerMock = new Mock<IExecutionInitializer>();
+		_stateManagerMock = new Mock<ISkillExecutionStateManager>();
+		_stateTransitionServiceMock = new Mock<IExecutionStateTransitionService>();
+		_eventPublisherMock = new Mock<IExecutionEventPublisher>();
+		_progressMonitorMock = new Mock<IExecutionProgressMonitor>();
+		_dependencyGraphAnalyzerMock = new Mock<IDependencyGraphAnalyzer>();
+		_executionTriggerServiceMock = new Mock<IExecutionTriggerService>();
+		_eventBus = new SkillExecutionEventBus(Mock.Of<ILogger<SkillExecutionEventBus>>());
+		_timingCalculationOrchestratorMock = new Mock<ITimingCalculationOrchestrator>();
+
+		_nodeSubject = new Subject<IReadOnlyList<Node>>();
+		_edgeSubject = new Subject<IReadOnlyList<DependencyEdge>>();
+
+		_eventPublisherMock.Setup(x => x.NodesChanged).Returns(_nodeSubject);
+		_eventPublisherMock.Setup(x => x.EdgesChanged).Returns(_edgeSubject);
+	}
+
+	private ExecutionOrchestrator CreateOrchestrator()
+	{
+		// Create the real re-scheduling services (that ExecutionOrchestrator now depends on)
+		var progressDataBuilder = new ExecutionProgressDataBuilder();
+		var timeCalculator = new ExecutionTimeCalculator();
+
+		var reschedulingCoordinator = new ReschedulingCoordinator(
+			Mock.Of<ILogger<ReschedulingCoordinator>>(),
+			NullLogger<PipelineEvents>.Instance,
+			_timeProvider,
+			_stateManagerMock.Object,
+			progressDataBuilder,
+			timeCalculator,
+			_timingCalculationOrchestratorMock.Object);
+
+		return new ExecutionOrchestrator(
+			_loggerMock.Object,
+			NullLogger<PipelineEvents>.Instance,
+			_timeProvider,
+			_executionInitializerMock.Object,
+			_stateManagerMock.Object,
+			_stateTransitionServiceMock.Object,
+			_eventPublisherMock.Object,
+			_progressMonitorMock.Object,
+			_dependencyGraphAnalyzerMock.Object,
+			_executionTriggerServiceMock.Object,
+			_eventBus,
+			reschedulingCoordinator);
+	}
+
+	private SkillExecutionNode CreateSkillNode(Guid? id = null, Guid? skillId = null, Guid? agentId = null)
+	{
+		var nodeId = id ?? Guid.NewGuid();
+		var skill = new Skill
+		{
+			Id = skillId ?? Guid.NewGuid(),
+			Name = $"Skill_{Guid.NewGuid()}",
+			Description = "Test skill",
+			Properties = new List<Property>(),
+			AgentIds = new List<Guid>()
+		};
+
+		return new SkillExecutionNode
+		{
+			Id = nodeId,
+			Position = new NodePosition { X = 0, Y = 0 },
+			SkillExecutionTask = new SkillExecutionTask
+			{
+				Name = "TestTask",
+				StartTime = 0,
+				Duration = 10,
+				FinishTime = 10,
+				Skill = skill,
+				AgentId = agentId ?? Guid.NewGuid(),
+				ExecutionId = Guid.NewGuid()
+			}
+		};
+	}
+
+	#region Test: Basic Event-Driven Execution Flow
+
+	[Fact]
+	public async System.Threading.Tasks.Task StartLoadedProcedureAsync_ShouldAnalyzeDependencies()
+	{
+		// Arrange
+		var nodes = new List<Node> { CreateSkillNode() };
+		var edges = new List<DependencyEdge>();
+		var schedule = new ScheduleResult
+		{
+			Success = true,
+			UpdatedNodes = nodes,
+			NodeSchedules = new List<NodeSchedule>().AsReadOnly()
+		};
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+			Schedule = schedule,
+			AgentAssignments = new Dictionary<Guid, IRuntimeAgent>()
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		var dependencyGraph = new DependencyGraph
+		{
+			Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>()
+		};
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(nodes, edges))
+			.Returns(dependencyGraph);
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		// Simulate immediate completion
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(true);
+		_progressMonitorMock.Setup(x => x.IsExecutionSuccessful()).Returns(true);
+		_progressMonitorMock.Setup(x => x.GetExecutionStatistics()).Returns(new Dictionary<string, int>
+		{
+			["Total"] = 1,
+			["Pending"] = 0,
+			["Running"] = 0,
+			["Completed"] = 1,
+			["Failed"] = 0
+		});
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		// Simulate finish event to trigger completion
+		await System.Threading.Tasks.Task.Delay(100);
+		_eventBus.PublishEvent(new ExecutionEvent
+		{
+			SkillId = nodes[0].Id, // Use node ID, not skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		});
+
+		var result = await executionTask;
+
+		// Assert
+		Assert.True(result);
+		_dependencyGraphAnalyzerMock.Verify(x => x.AnalyzeDependencies(nodes, edges), Times.Once);
+		_executionTriggerServiceMock.Verify(x => x.Start(dependencyGraph, nodes, It.IsAny<VariableContext?>()), Times.Once);
+		_executionTriggerServiceMock.Verify(x => x.Stop(), Times.Once);
+	}
+
+	#endregion
+
+	#region Test: Event Handling and State Updates
+
+	[Fact]
+	public async System.Threading.Tasks.Task OnExecutionEvent_WhenStartEvent_ShouldTransitionToRunning()
+	{
+		// Arrange
+		var skillId = Guid.NewGuid();
+		var nodeId = Guid.NewGuid();
+		var agentId = Guid.NewGuid();
+		var agent = Mock.Of<IRuntimeAgent>(a => a.Id == agentId);
+
+		var node = CreateSkillNode(nodeId, skillId, agentId);
+		var nodes = new List<Node> { node };
+		var edges = new List<DependencyEdge>();
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+			AgentAssignments = new Dictionary<Guid, IRuntimeAgent> { [nodeId] = agent }
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()))
+			.Returns(new DependencyGraph { Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>() });
+
+		_stateManagerMock.Setup(x => x.GetAssignedAgent(nodeId)).Returns(agent);
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		// Simulate completion after finish event
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(false);
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		// Publish Start event
+		await System.Threading.Tasks.Task.Delay(100);
+		var startEvent = new ExecutionEvent
+		{
+			SkillId = nodeId, // Use node ID, not domain skill ID
+			EventType = ExecutionEventType.Start,
+			Timestamp = DateTimeOffset.UtcNow
+		};
+		_eventBus.PublishEvent(startEvent);
+
+		await System.Threading.Tasks.Task.Delay(100);
+		cts.Cancel();
+
+		try
+		{
+			await executionTask;
+		}
+		catch (TaskCanceledException)
+		{
+			// Expected
+		}
+
+		// Assert
+		_stateTransitionServiceMock.Verify(
+			x => x.TransitionToRunning(nodeId, agent, It.IsAny<DateTimeOffset>()),
+			Times.Once);
+	}
+
+	[Fact]
+	public async System.Threading.Tasks.Task OnExecutionEvent_WhenFinishEvent_ShouldTransitionToCompleted()
+	{
+		// Arrange
+		var skillId = Guid.NewGuid();
+		var nodeId = Guid.NewGuid();
+		var node = CreateSkillNode(nodeId, skillId);
+		var nodes = new List<Node> { node };
+		var edges = new List<DependencyEdge>();
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+			AgentAssignments = new Dictionary<Guid, IRuntimeAgent>()
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()))
+			.Returns(new DependencyGraph { Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>() });
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(true);
+		_progressMonitorMock.Setup(x => x.IsExecutionSuccessful()).Returns(true);
+		_progressMonitorMock.Setup(x => x.GetExecutionStatistics()).Returns(new Dictionary<string, int>
+		{
+			["Total"] = 1,
+			["Pending"] = 0,
+			["Running"] = 0,
+			["Completed"] = 1,
+			["Failed"] = 0
+		});
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		// Publish Finish event
+		await System.Threading.Tasks.Task.Delay(100);
+		var finishEvent = new ExecutionEvent
+		{
+			SkillId = nodeId, // Use node ID, not domain skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		};
+		_eventBus.PublishEvent(finishEvent);
+
+		var result = await executionTask;
+
+		// Assert
+		Assert.True(result);
+		_stateTransitionServiceMock.Verify(
+			x => x.TransitionToCompleted(nodeId, It.IsAny<DateTimeOffset>()),
+			Times.Once);
+	}
+
+	#endregion
+
+	#region Test: Execution Completion Detection
+
+	[Fact]
+	public async System.Threading.Tasks.Task ExecutionOrchestrator_WhenAllSkillsComplete_ShouldCompleteSuccessfully()
+	{
+		// Arrange
+		var skill1Id = Guid.NewGuid();
+		var skill2Id = Guid.NewGuid();
+		var node1 = CreateSkillNode(Guid.NewGuid(), skill1Id);
+		var node2 = CreateSkillNode(Guid.NewGuid(), skill2Id);
+		var nodes = new List<Node> { node1, node2 };
+		var edges = new List<DependencyEdge>();
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+			AgentAssignments = new Dictionary<Guid, IRuntimeAgent>()
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()))
+			.Returns(new DependencyGraph { Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>() });
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		// First finish event - not complete yet
+		var setupSequence = _progressMonitorMock.SetupSequence(x => x.IsExecutionComplete());
+		setupSequence.Returns(false); // After first finish
+		setupSequence.Returns(true);  // After second finish
+
+		_progressMonitorMock.Setup(x => x.IsExecutionSuccessful()).Returns(true);
+		_progressMonitorMock.Setup(x => x.GetExecutionStatistics()).Returns(new Dictionary<string, int>
+		{
+			["Total"] = 2,
+			["Pending"] = 0,
+			["Running"] = 0,
+			["Completed"] = 2,
+			["Failed"] = 0
+		});
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		await System.Threading.Tasks.Task.Delay(200); // Increased for CI reliability
+
+		// Publish first finish event
+		_eventBus.PublishEvent(new ExecutionEvent
+		{
+			SkillId = node1.Id, // Use node ID, not domain skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		});
+
+		await System.Threading.Tasks.Task.Delay(800); // Wait for re-schedule throttle (500ms) + margin
+
+		// Publish second finish event
+		_eventBus.PublishEvent(new ExecutionEvent
+		{
+			SkillId = node2.Id, // Use node ID, not domain skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		});
+
+		var result = await executionTask;
+
+		// Assert
+		Assert.True(result);
+	}
+
+	[Fact]
+	public async System.Threading.Tasks.Task ExecutionOrchestrator_WhenSkillFails_ShouldReportFailure()
+	{
+		// Arrange
+		var skillId = Guid.NewGuid();
+		var node = CreateSkillNode(Guid.NewGuid(), skillId);
+		var nodes = new List<Node> { node };
+		var edges = new List<DependencyEdge>();
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()))
+			.Returns(new DependencyGraph { Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>() });
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(true);
+		_progressMonitorMock.Setup(x => x.IsExecutionSuccessful()).Returns(false); // Failed
+		_progressMonitorMock.Setup(x => x.GetExecutionStatistics()).Returns(new Dictionary<string, int>
+		{
+			["Total"] = 1,
+			["Pending"] = 0,
+			["Running"] = 0,
+			["Completed"] = 0,
+			["Failed"] = 1
+		});
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		await System.Threading.Tasks.Task.Delay(100);
+
+		// Publish finish event (skill failed but finished)
+		_eventBus.PublishEvent(new ExecutionEvent
+		{
+			SkillId = node.Id, // Use node ID, not domain skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		});
+
+		var result = await executionTask;
+
+		// Assert
+		Assert.False(result); // Execution failed
+	}
+
+	#endregion
+
+	#region Test: Cleanup and Disposal
+
+	[Fact]
+	public async System.Threading.Tasks.Task StartLoadedProcedureAsync_ShouldCleanupTriggerServiceOnCompletion()
+	{
+		// Arrange
+		var nodes = new List<Node> { CreateSkillNode() };
+		var edges = new List<DependencyEdge>();
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+			AgentAssignments = new Dictionary<Guid, IRuntimeAgent>()
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()))
+			.Returns(new DependencyGraph { Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>() });
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(true);
+		_progressMonitorMock.Setup(x => x.IsExecutionSuccessful()).Returns(true);
+		_progressMonitorMock.Setup(x => x.GetExecutionStatistics()).Returns(new Dictionary<string, int>
+		{
+			["Total"] = 1,
+			["Pending"] = 0,
+			["Running"] = 0,
+			["Completed"] = 1,
+			["Failed"] = 0
+		});
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		await System.Threading.Tasks.Task.Delay(100);
+
+		// Trigger completion
+		_eventBus.PublishEvent(new ExecutionEvent
+		{
+			SkillId = nodes[0].Id, // Use node ID, not skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		});
+
+		await executionTask;
+
+		// Assert
+		_executionTriggerServiceMock.Verify(x => x.Stop(), Times.Once);
+	}
+
+	[Fact]
+	public async System.Threading.Tasks.Task StartLoadedProcedureAsync_WhenCancelled_ShouldCleanupProperly()
+	{
+		// Arrange
+		var nodes = new List<Node> { CreateSkillNode() };
+		var edges = new List<DependencyEdge>();
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()))
+			.Returns(new DependencyGraph { Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>() });
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(false);
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		try
+		{
+			await executionTask;
+		}
+		catch (TaskCanceledException)
+		{
+			// Expected
+		}
+
+		// Assert
+		_executionTriggerServiceMock.Verify(x => x.Stop(), Times.Once);
+	}
+
+	#endregion
+
+	#region Test: Dependency Graph Integration
+
+	[Fact]
+	public async System.Threading.Tasks.Task StartLoadedProcedureAsync_ShouldPassCorrectDependencyGraphToTriggerService()
+	{
+		// Arrange
+		var skillId = Guid.NewGuid();
+		var node = CreateSkillNode(Guid.NewGuid(), skillId);
+		var nodes = new List<Node> { node };
+		var edges = new List<DependencyEdge>();
+
+		var expectedDependencyGraph = new DependencyGraph
+		{
+			Prerequisites = new Dictionary<Guid, SkillEventPrerequisites>
+			{
+				[node.Id] = new SkillEventPrerequisites // Use node ID as key
+				{
+					SkillId = node.Id, // Use node ID
+					StartPrerequisites = new List<EventPrerequisite>().AsReadOnly(),
+					FinishPrerequisites = new List<EventPrerequisite>().AsReadOnly()
+				}
+			}
+		};
+
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = true,
+			Nodes = nodes,
+			Edges = edges,
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		_dependencyGraphAnalyzerMock.Setup(x => x.AnalyzeDependencies(nodes, edges))
+			.Returns(expectedDependencyGraph);
+
+		_stateManagerMock.Setup(x => x.Initialize(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyDictionary<Guid, IRuntimeAgent>>()));
+		_executionTriggerServiceMock.Setup(x => x.Stop());
+
+		DependencyGraph? capturedGraph = null;
+		_executionTriggerServiceMock.Setup(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()))
+			.Callback<DependencyGraph, IReadOnlyList<Node>, VariableContext?>((graph, _, __) => capturedGraph = graph);
+
+		_progressMonitorMock.Setup(x => x.IsExecutionComplete()).Returns(true);
+		_progressMonitorMock.Setup(x => x.IsExecutionSuccessful()).Returns(true);
+		_progressMonitorMock.Setup(x => x.GetExecutionStatistics()).Returns(new Dictionary<string, int>
+		{
+			["Total"] = 1,
+			["Pending"] = 0,
+			["Running"] = 0,
+			["Completed"] = 1,
+			["Failed"] = 0
+		});
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		var executionTask = orchestrator.StartLoadedProcedureAsync(cts.Token);
+
+		await System.Threading.Tasks.Task.Delay(100);
+
+		_eventBus.PublishEvent(new ExecutionEvent
+		{
+			SkillId = node.Id, // Use node ID, not domain skill ID
+			EventType = ExecutionEventType.Finish,
+			Timestamp = DateTimeOffset.UtcNow
+		});
+
+		await executionTask;
+
+		// Assert
+		Assert.NotNull(capturedGraph);
+		Assert.Equal(expectedDependencyGraph, capturedGraph);
+	}
+
+	#endregion
+
+	#region Test: Initialization Failure
+
+	[Fact]
+	public async System.Threading.Tasks.Task StartLoadedProcedureAsync_WhenInitializationFails_ShouldReturnFalse()
+	{
+		// Arrange
+		var initResult = new ExecutionInitializationResult
+		{
+			Success = false,
+			ErrorMessage = "Test initialization failure",
+			Nodes = new List<Node>(),
+			Edges = new List<DependencyEdge>(),
+			Schedule = null,
+		};
+
+		_executionInitializerMock.Setup(x => x.InitializeAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(initResult);
+
+		var orchestrator = CreateOrchestrator();
+
+		// Act
+		var result = await orchestrator.StartLoadedProcedureAsync(CancellationToken.None);
+
+		// Assert
+		Assert.False(result);
+		_dependencyGraphAnalyzerMock.Verify(x => x.AnalyzeDependencies(It.IsAny<IReadOnlyList<Node>>(), It.IsAny<IReadOnlyList<DependencyEdge>>()), Times.Never);
+		_executionTriggerServiceMock.Verify(x => x.Start(It.IsAny<DependencyGraph>(), It.IsAny<IReadOnlyList<Node>>(), It.IsAny<VariableContext?>()), Times.Never);
+	}
+
+	#endregion
+
+	#region Test: Complex Dependency Integration - B Start triggers A Start, A Finish cancels B
+
+	/// <summary>
+	/// Integration test for complex dependency scenario:
+	/// - Skill A: Regular skill, 5 second duration
+	/// - Skill B: Adaptive skill, 100 second nominal duration
+	/// Dependencies:
+	/// 1. B Start → A Start (A waits for B to start)
+	/// 2. A Finish → B Finish (B is cancelled when A finishes)
+	/// Expected behavior:
+	/// 1. B starts immediately (no start prerequisites)
+	/// 2. B publishes Start event
+	/// 3. A starts (triggered by B.Start)
+	/// 4. A executes for 5 seconds
+	/// 5. A finishes and publishes Finish event
+	/// 6. B is cancelled by A.Finish
+	/// 7. B stops and publishes Finish event
+	/// 8. Total duration: ~5 seconds (not 100 seconds)
+	/// </summary>
+	[Fact]
+	public void BStartTriggersAStart_AFinishCancelsB_DependencyAnalysisTest()
+	{
+		// Arrange - Create test skills
+		var skillA = CreateRegularSkill("SkillA", 5.0);
+		var skillB = CreateAdaptiveSkill("SkillB", 100.0);
+
+		// Create nodes
+		var agentId = Guid.NewGuid();
+		var nodeA = CreateSkillNode(skillA, agentId, 5.0);
+		var nodeB = CreateSkillNode(skillB, agentId, 100.0);
+
+		// Create edges: B (left) → A (left) and A (right) → B (right)
+		var edges = new List<DependencyEdge>
+		{
+			new DependencyEdge
+			{
+				Id = Guid.NewGuid(),
+				SourceId = nodeB.Id,
+				TargetId = nodeA.Id,
+				SourceHandle = "left",  // B Start
+				TargetHandle = "left"    // → A Start
+			},
+			new DependencyEdge
+			{
+				Id = Guid.NewGuid(),
+				SourceId = nodeA.Id,
+				TargetId = nodeB.Id,
+				SourceHandle = "right",  // A Finish
+				TargetHandle = "right"   // → B Finish
+			}
+		};
+
+		var nodes = new List<Node> { nodeA, nodeB };
+
+		// Create real dependency graph analyzer and hierarchy processor
+		var hierarchyProcessorMock = new Mock<INodeHierarchyProcessor>();
+		hierarchyProcessorMock.Setup(p => p.ProcessHierarchy(It.IsAny<IReadOnlyList<Node>>()))
+			.Returns((IReadOnlyList<Node> inputNodes) => new NodeHierarchyInfo
+			{
+				TaskNodes = Array.Empty<TaskNode>(),
+				SkillExecutionNodes = inputNodes.OfType<SkillExecutionNode>().ToList(),
+				ParentToChildrenMapping = new Dictionary<Guid, IReadOnlyList<Node>>(),
+				TaskToSkillMapping = new Dictionary<Guid, IReadOnlyList<SkillExecutionNode>>(),
+				SkillToTaskMapping = new Dictionary<Guid, TaskNode>()
+			});
+
+		var analyzer = new DependencyGraphAnalyzer(
+			hierarchyProcessorMock.Object,
+			Mock.Of<ILogger<DependencyGraphAnalyzer>>());
+
+		// Act - Analyze dependencies
+		var dependencyGraph = analyzer.AnalyzeDependencies(nodes, edges);
+
+		// Assert - Verify dependency graph structure
+		Assert.NotNull(dependencyGraph);
+		Assert.Equal(2, dependencyGraph.Prerequisites.Count);
+
+		// Verify Skill A prerequisites
+		var skillAPrereqs = dependencyGraph.GetPrerequisites(nodeA.Id);
+		Assert.NotNull(skillAPrereqs);
+		Assert.Single(skillAPrereqs.StartPrerequisites); // A waits for B.Start
+		Assert.Empty(skillAPrereqs.FinishPrerequisites); // A has no finish prerequisites
+		Assert.Equal(nodeB.Id, skillAPrereqs.StartPrerequisites[0].DependencySkillId);
+		Assert.Equal(EventTriggerType.Start, skillAPrereqs.StartPrerequisites[0].RequiredEventType);
+
+		// Verify Skill B prerequisites
+		var skillBPrereqs = dependencyGraph.GetPrerequisites(nodeB.Id);
+		Assert.NotNull(skillBPrereqs);
+		Assert.Empty(skillBPrereqs.StartPrerequisites); // B has no start prerequisites
+		Assert.Single(skillBPrereqs.FinishPrerequisites); // B waits for A.Finish to finish
+		Assert.Equal(nodeA.Id, skillBPrereqs.FinishPrerequisites[0].DependencySkillId);
+		Assert.Equal(EventTriggerType.Finish, skillBPrereqs.FinishPrerequisites[0].RequiredEventType);
+
+		// Verify B is an adaptive skill (has finish prerequisites)
+		Assert.True(skillBPrereqs.IsAdaptive, "Skill B should be adaptive (has finish prerequisites)");
+		Assert.False(skillAPrereqs.IsAdaptive, "Skill A should not be adaptive");
+
+		// Verify immediate start skills
+		var immediateStart = dependencyGraph.GetImmediateStartSkills().ToList();
+		Assert.Single(immediateStart); // Only B can start immediately
+		Assert.Equal(nodeB.Id, immediateStart[0]);
+
+		// Verify adaptive skills
+		var adaptiveSkills = dependencyGraph.GetAdaptiveSkills().ToList();
+		Assert.Single(adaptiveSkills); // Only B is adaptive
+		Assert.Equal(nodeB.Id, adaptiveSkills[0]);
+	}
+
+	private static Skill CreateRegularSkill(string name, double duration)
+	{
+		return new Skill
+		{
+			Id = Guid.NewGuid(),
+			Name = name,
+			Description = "Test regular skill",
+			Properties = new List<Property>
+			{
+				new Property
+				{
+					Name = "NominalDuration",
+					Value = TypedValue.Number(duration),
+					Direction = PropertyDirection.Input
+				}
+			},
+			AgentIds = new List<Guid>()
+		};
+	}
+
+	private static Skill CreateAdaptiveSkill(string name, double duration)
+	{
+		return new Skill
+		{
+			Id = Guid.NewGuid(),
+			Name = $"Adaptive_{name}",
+			Description = "Test adaptive skill",
+			Properties = new List<Property>
+			{
+				new Property
+				{
+					Name = "NominalDuration",
+					Value = TypedValue.Number(duration),
+					Direction = PropertyDirection.Input
+				}
+			},
+			AgentIds = new List<Guid>()
+		};
+	}
+
+	private static SkillExecutionNode CreateSkillNode(Skill skill, Guid agentId, double duration)
+	{
+		return new SkillExecutionNode
+		{
+			Id = Guid.NewGuid(),
+			Position = new NodePosition { X = 0, Y = 0 },
+			SkillExecutionTask = new SkillExecutionTask
+			{
+				Name = skill.Name,
+				Skill = skill,
+				AgentId = agentId,
+				StartTime = 0,
+				Duration = duration,
+				ExecutionId = Guid.NewGuid()
+			}
+		};
+	}
+
+	#endregion
+}

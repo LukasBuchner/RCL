@@ -1,0 +1,192 @@
+{
+  "agents": [
+    {
+      "id": "cdef1234-5678-4cde-89ab-34567890abcd",
+      "name": "Alice",
+      "description": "Alice - Robotic agent with human-like characteristics",
+      "maxConcurrentExecutions": 2,
+      "cpuUsage": {
+        "min": 10.0,
+        "max": 30.0
+      },
+      "skills": [
+        {
+          "skillDefinitionId": "01234567-89ab-4abc-cdef-0123456789ab",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 85.0,
+          "minAdaptiveDuration": 65.0,
+          "maxAdaptiveDuration": 120.0,
+          "failureChance": 0.03
+        },
+        {
+          "skillDefinitionId": "12345678-9abc-4bcd-def0-123456789abc",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 95.0,
+          "minAdaptiveDuration": 70.0,
+          "maxAdaptiveDuration": 135.0,
+          "failureChance": 0.04
+        },
+        {
+          "skillDefinitionId": "23456789-abcd-4cde-ef01-23456789abcd",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 45.0,
+          "failureChance": 0.02
+        },
+        {
+          "skillDefinitionId": "3456789a-bcde-4def-f012-3456789abcde",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 40.0,
+          "failureChance": 0.01
+        },
+        {
+          "skillDefinitionId": "456789ab-cdef-4ef0-0123-456789abcdef",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 110.0,
+          "minAdaptiveDuration": 80.0,
+          "maxAdaptiveDuration": 150.0,
+          "failureChance": 0.05
+        },
+        {
+          "skillDefinitionId": "95f2a7a4-41a3-4b9f-8253-1c63bb19b4e5",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 105.0,
+          "minAdaptiveDuration": 75.0,
+          "maxAdaptiveDuration": 145.0,
+          "failureChance": 0.04
+        },
+        {
+          "skillDefinitionId": "f40eba82-8074-4840-bdf2-8644f8a115a0",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 75.0,
+          "minAdaptiveDuration": 50.0,
+          "maxAdaptiveDuration": 110.0,
+          "failureChance": 0.03
+        },
+        {
+          "skillDefinitionId": "738e2beb-74af-436d-8836-7a843bf19f61",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 5.0,
+          "minAdaptiveDuration": 1.0,
+          "maxAdaptiveDuration": 300.0,
+          "failureChance": 0.02
+        },
+        {
+          "skillDefinitionId": "885add46-44f7-440a-8ce9-6d78074e8ce2",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 125.0,
+          "minAdaptiveDuration": 90.0,
+          "maxAdaptiveDuration": 170.0,
+          "failureChance": 0.06
+        },
+        {
+          "skillDefinitionId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 60.0,
+          "minAdaptiveDuration": 40.0,
+          "maxAdaptiveDuration": 90.0,
+          "failureChance": 0.02
+        },
+        {
+          "skillDefinitionId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 90.0,
+          "failureChance": 0.03
+        }
+      ]
+    },
+    {
+      "id": "def12345-6789-4def-89ab-4567890abcde",
+      "name": "Bob",
+      "description": "Bob - Robotic agent with technical specialization",
+      "maxConcurrentExecutions": 3,
+      "cpuUsage": {
+        "min": 15.0,
+        "max": 35.0
+      },
+      "skills": [
+        {
+          "skillDefinitionId": "23456789-abcd-4cde-ef01-23456789abcd",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 55.0,
+          "failureChance": 0.02
+        },
+        {
+          "skillDefinitionId": "3456789a-bcde-4def-f012-3456789abcde",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 48.0,
+          "failureChance": 0.01
+        }
+      ]
+    },
+    {
+      "id": "ef123456-7890-4ef0-89ab-567890abcdef",
+      "name": "Charlie",
+      "description": "Charlie - Robotic agent with creative capabilities",
+      "maxConcurrentExecutions": 1,
+      "cpuUsage": {
+        "min": 20.0,
+        "max": 50.0
+      },
+      "skills": [
+        {
+          "skillDefinitionId": "456789ab-cdef-4ef0-0123-456789abcdef",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 165.0,
+          "minAdaptiveDuration": 120.0,
+          "maxAdaptiveDuration": 200.0,
+          "failureChance": 0.05
+        },
+        {
+          "skillDefinitionId": "95f2a7a4-41a3-4b9f-8253-1c63bb19b4e5",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 155.0,
+          "minAdaptiveDuration": 115.0,
+          "maxAdaptiveDuration": 190.0,
+          "failureChance": 0.04
+        }
+      ]
+    },
+    {
+      "id": "f1234567-8901-4f01-89ab-67890abcdef0",
+      "name": "Robot",
+      "description": "Robot - Generic robotic agent for standard operations",
+      "maxConcurrentExecutions": 4,
+      "cpuUsage": {
+        "min": 5.0,
+        "max": 25.0
+      },
+      "skills": [
+        {
+          "skillDefinitionId": "01234567-89ab-4abc-cdef-0123456789ab",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 65.0,
+          "minAdaptiveDuration": 45.0,
+          "maxAdaptiveDuration": 95.0,
+          "failureChance": 0.03
+        },
+        {
+          "skillDefinitionId": "12345678-9abc-4bcd-def0-123456789abc",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 72.0,
+          "minAdaptiveDuration": 52.0,
+          "maxAdaptiveDuration": 105.0,
+          "failureChance": 0.04
+        },
+        {
+          "skillDefinitionId": "23456789-abcd-4cde-ef01-23456789abcd",
+          "canExecuteAdaptively": false,
+          "nominalDuration": 42.0,
+          "failureChance": 0.02
+        },
+        {
+          "skillDefinitionId": "738e2beb-74af-436d-8836-7a843bf19f61",
+          "canExecuteAdaptively": true,
+          "nominalDuration": 5.0,
+          "minAdaptiveDuration": 1.0,
+          "maxAdaptiveDuration": 300.0,
+          "failureChance": 0.01
+        }
+      ]
+    }
+  ]
+}

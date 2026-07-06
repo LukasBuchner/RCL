@@ -1,0 +1,127 @@
+{
+  "skillDefinitions": [
+    {
+      "id": "01234567-89ab-4abc-cdef-0123456789ab",
+      "name": "Move Object To",
+      "description": "Move an object to a specific location",
+      "properties": [
+        {
+          "name": "TargetPosition",
+          "type": "Position",
+          "value": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "alpha": 0.0,
+            "beta": 0.0,
+            "gamma": 0.0
+          },
+          "description": "Target position for moving the object (X, Y, Z, Alpha, Beta, Gamma)"
+        }
+      ]
+    },
+    {
+      "id": "12345678-9abc-4bcd-def0-123456789abc",
+      "name": "Move Object To Tag",
+      "description": "Move an object to a predefined location tag",
+      "properties": [
+        {
+          "name": "TargetTag",
+          "type": "PositionTag",
+          "value": "a0000000-0000-0000-0000-000000000001",
+          "description": "Target position tag for moving the object"
+        }
+      ]
+    },
+    {
+      "id": "23456789-abcd-4cde-ef01-23456789abcd",
+      "name": "Grasp Object",
+      "description": "Grasp an object",
+      "properties": []
+    },
+    {
+      "id": "3456789a-bcde-4def-f012-3456789abcde",
+      "name": "Release Object",
+      "description": "Release an object",
+      "properties": []
+    },
+    {
+      "id": "456789ab-cdef-4ef0-0123-456789abcdef",
+      "name": "Move To Position",
+      "description": "Move an object to a specific position in 3D space",
+      "properties": [
+        {
+          "name": "TargetPosition",
+          "type": "Position",
+          "value": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "alpha": 0.0,
+            "beta": 0.0,
+            "gamma": 0.0
+          },
+          "description": "Target 3D position (X, Y, Z, Alpha, Beta, Gamma)"
+        }
+      ]
+    },
+    {
+      "id": "95f2a7a4-41a3-4b9f-8253-1c63bb19b4e5",
+      "name": "Move To Position Tag",
+      "description": "Move an object to a predefined position tag",
+      "properties": [
+        {
+          "name": "TargetTag",
+          "type": "PositionTag",
+          "value": "a0000000-0000-0000-0000-000000000001",
+          "description": "Target position tag for movement"
+        }
+      ]
+    },
+    {
+      "id": "f40eba82-8074-4840-bdf2-8644f8a115a0",
+      "name": "Inspect Object",
+      "description": "Inspect an object",
+      "properties": []
+    },
+    {
+      "id": "738e2beb-74af-436d-8836-7a843bf19f61",
+      "name": "Hold Position",
+      "description": "Hold the current end-effector pose for a specified duration",
+      "properties": [
+        {
+          "name": "Duration",
+          "type": "Number",
+          "value": 5.0,
+          "description": "How long to hold the current pose in seconds"
+        }
+      ]
+    },
+    {
+      "id": "885add46-44f7-440a-8ce9-6d78074e8ce2",
+      "name": "Screw Together",
+      "description": "Screw two objects together",
+      "properties": []
+    },
+    {
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Inspect Quality",
+      "description": "Inspect an object and determine if quality is acceptable",
+      "properties": [
+        {
+          "name": "QualityOK",
+          "type": "Boolean",
+          "value": false,
+          "description": "Quality inspection result: true if quality is OK, false if not OK",
+          "direction": "Output"
+        }
+      ]
+    },
+    {
+      "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Weld",
+      "description": "Weld two metal components together at a joint",
+      "properties": []
+    }
+  ]
+}

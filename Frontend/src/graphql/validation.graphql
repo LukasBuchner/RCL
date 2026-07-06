@@ -1,0 +1,16 @@
+subscription OnProcedureValidationChanged {
+    procedureValidationChanged {
+        agentSerializationViolations {
+            agentId
+            agentName
+            unserializedSkills {
+                nodeId
+                skillName
+            }
+            missingFsPairs {
+                skillA
+                skillB
+            }
+        }
+    }
+}

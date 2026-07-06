@@ -1,0 +1,103 @@
+query GetAllProcedures {
+  procedures {
+    id
+    name
+    description
+    isLoaded
+    createdAtUtc
+    lastUpdatedAtUtc
+  }
+}
+
+query GetLoadedProcedure {
+  loadedProcedure {
+    id
+    name
+    description
+    isLoaded
+    lastLoadedUtc
+    variables {
+      name
+      type {
+        __typename
+        ... on BooleanType {
+          typeName
+        }
+        ... on NumberType {
+          typeName
+        }
+        ... on StringType {
+          typeName
+        }
+        ... on PositionType {
+          typeName
+        }
+        ... on PositionTagType {
+          typeName
+        }
+        ... on SceneObjectType {
+          typeName
+        }
+        ... on EnumType {
+          typeName
+          allowedValues
+        }
+        ... on ListType {
+          typeName
+          elementType {
+            __typename
+            ... on BooleanType {
+              typeName
+            }
+            ... on NumberType {
+              typeName
+            }
+            ... on StringType {
+              typeName
+            }
+          }
+        }
+      }
+      defaultValue
+      scope
+      source
+      description
+      isReadOnly
+    }
+  }
+}
+
+mutation LoadProcedure($id: UUID!) {
+  loadProcedure(id: $id) {
+    procedure {
+      id
+      name
+      description
+      isLoaded
+      lastLoadedUtc
+    }
+  }
+}
+
+mutation UnloadProcedure {
+  unloadProcedure {
+    success
+  }
+}
+
+mutation CreateProcedure($input: CreateProcedureInput!) {
+  createProcedure(input: $input) {
+    procedure {
+      id
+      name
+      description
+      createdAtUtc
+    }
+  }
+}
+
+mutation DeleteProcedure($input: DeleteProcedureInput!) {
+  deleteProcedure(input: $input) {
+    boolean
+  }
+}

@@ -1,0 +1,246 @@
+\begin{figure*}[htbp]
+\centering
+
+\begin{tikzpicture}[
+    % Lifeline styles
+    lifeline/.style={thick},
+    activation/.style={fill=white, draw=black, thick, minimum width=0.4cm},
+    % Message styles
+    sync/.style={-{Stealth[length=2mm]}, thick},
+    async/.style={-{Stealth[length=2mm, open]}, thick, dashed},
+    return/.style={-{Stealth[length=2mm]}, thick, dashed, gray},
+    stream/.style={-{Stealth[length=2mm]}, thick, dashed, orange!70!black},
+    subscribe/.style={-{Stealth[length=2mm]}, thick, dashed, blue!60!black},
+    % Actor style
+    actor/.style={rectangle, draw=black, thick, fill=white, minimum height=0.8cm, minimum width=1.6cm, font=\scriptsize},
+    external/.style={rectangle, draw=black, thick, fill=gray!10, minimum height=0.8cm, minimum width=1.6cm, font=\scriptsize, dashed},
+    % Fragment styles
+    fragment/.style={draw=black, thick, fill=white},
+    fragment label/.style={fill=white, font=\tiny\bfseries},
+]
+
+% ============================================
+% PARTICIPANTS (left to right)
+% ============================================
+
+\node[external] (agent) at (0, 0) {Agent};
+\node[actor] (coord) at (2.5, 0) {Coordinator};
+\node[actor, fill=orange!15] (bus) at (5, 0) {Event Bus};
+\node[actor] (trigger) at (7.5, 0) {Trigger};
+\node[actor, fill=yellow!20, font=\scriptsize\bfseries] (orch) at (10, 0) {Orchestrator};
+\node[actor, fill=violet!15] (state) at (12.5, 0) {State Mgr};
+\node[actor, fill=teal!15] (resched) at (15, 0) {Rescheduler};
+\node[external] (frontend) at (17.5, 0) {Frontend};
+
+% ============================================
+% LIFELINES
+% ============================================
+
+\draw[lifeline] (agent.south) -- ++(0, -14);
+\draw[lifeline] (coord.south) -- ++(0, -14);
+\draw[lifeline] (bus.south) -- ++(0, -14);
+\draw[lifeline] (trigger.south) -- ++(0, -14);
+\draw[lifeline] (orch.south) -- ++(0, -14);
+\draw[lifeline] (state.south) -- ++(0, -14);
+\draw[lifeline] (resched.south) -- ++(0, -14);
+\draw[lifeline] (frontend.south) -- ++(0, -14);
+
+% ============================================
+% INITIAL SUBSCRIPTION PHASE
+% ============================================
+
+% Trigger subscribes to EventBus
+\draw[subscribe] (trigger.south) ++(0, -0.8) -- ++(-2.5, 0)
+    node[midway, above, font=\tiny] {1: Subscribe(AllEvents)};
+
+% Orchestrator subscribes to EventBus
+\draw[subscribe] (orch.south) ++(0, -1.3) -- ++(-5, 0)
+    node[midway, above, font=\tiny] {2: Subscribe(AllEvents)};
+
+% ============================================
+% INNER LOOP FRAGMENT
+% ============================================
+
+% Inner loop box
+\draw[fragment, fill=blue!5] (-0.8, -2.0) rectangle (6.3, -7.2);
+\node[fragment label, fill=blue!15] at (-0.3, -2.0) {loop};
+\node[font=\tiny, anchor=west] at (-0.6, -2.4) {[Inner Loop - Fast]};
+
+% Trigger checks prerequisites and triggers
+\draw[sync] (trigger.south) ++(0, -2.8) -- ++(-5, 0)
+    node[midway, above, font=\tiny] {3: TriggerSkill()};
+
+% Coordinator activation
+\draw[activation] (coord.south) ++(0, -2.8) rectangle ++(0.4, -3.8);
+
+% Coordinator calls Agent
+\draw[sync] (coord.south) ++(0.2, -3.2) -- ++(-2.3, 0)
+    node[midway, above, font=\tiny] {4: ExecuteSkillAsync()};
+
+% Agent activation
+\draw[activation] (agent.south) ++(0, -3.2) rectangle ++(0.4, -2.5);
+
+% Agent streams progress back
+\draw[stream] (agent.south) ++(0.2, -4.0) -- ++(2.1, 0)
+    node[midway, above, font=\tiny] {5: IObservable<Progress>};
+
+% Coordinator publishes Start to EventBus
+\draw[stream] (coord.south) ++(0.2, -4.8) -- ++(2.3, 0)
+    node[midway, above, font=\tiny] {6: OnNext(Start)};
+
+% Agent completes
+\draw[stream] (agent.south) ++(0.2, -5.4) -- ++(2.1, 0)
+    node[midway, above, font=\tiny] {7: OnCompleted};
+
+% Coordinator publishes Finish to EventBus
+\draw[stream] (coord.south) ++(0.2, -6.2) -- ++(2.3, 0)
+    node[midway, above, font=\tiny] {8: OnNext(Finish)};
+
+% EventBus emits to Trigger (completing inner loop)
+\draw[stream] (bus.south) ++(0, -6.8) -- ++(2.5, 0)
+    node[midway, above, font=\tiny] {9: OnNext(event)};
+
+% ============================================
+% OUTER LOOP FRAGMENT
+% ============================================
+
+% Outer loop box
+\draw[fragment, fill=teal!5] (4.2, -7.5) rectangle (18.3, -13.5);
+\node[fragment label, fill=teal!15] at (4.7, -7.5) {loop};
+\node[font=\tiny, anchor=west] at (4.4, -7.9) {[Outer Loop - Throttled 500ms]};
+
+% EventBus emits to Orchestrator
+\draw[stream] (bus.south) ++(0, -8.3) -- ++(5, 0)
+    node[midway, above, font=\tiny] {10: OnNext(event)};
+
+% Orchestrator activation
+\draw[activation] (orch.south) ++(0, -8.3) rectangle ++(0.4, -4.7);
+
+% Orchestrator updates state
+\draw[sync] (orch.south) ++(0.2, -8.8) -- ++(2.3, 0)
+    node[midway, above, font=\tiny] {11: TransitionState()};
+
+% State activation
+\draw[activation] (state.south) ++(0, -8.8) rectangle ++(0.4, -0.8);
+
+% Throttle note
+\node[fill=teal!10, draw=teal!50, rounded corners=2pt, font=\tiny, inner sep=3pt]
+    at (11.2, -10.0) {Sample(500ms)};
+
+% Orchestrator calls Rescheduler (after throttle)
+\draw[sync] (orch.south) ++(0.2, -10.5) -- ++(4.8, 0)
+    node[midway, above, font=\tiny] {12: RescheduleAsync()};
+
+% Rescheduler activation
+\draw[activation] (resched.south) ++(0, -10.5) rectangle ++(0.4, -1.8);
+
+% Rescheduler queries StateManager
+\draw[sync] (resched.south) ++(0, -11.0) -- ++(-2.5, 0)
+    node[midway, above, font=\tiny] {13: GetAllStates()};
+
+% Rescheduler returns result
+\draw[return] (resched.south) ++(0, -12.0) -- ++(-5, 0)
+    node[midway, above, font=\tiny] {14: ReschedulingResult};
+
+% Orchestrator broadcasts to Frontend
+\draw[sync] (orch.south) ++(0.2, -12.6) -- ++(7.3, 0)
+    node[midway, above, font=\tiny] {15: Broadcast(nodes)};
+
+% Adaptive feedback (dashed back to coordinator)
+\draw[subscribe, teal!60!black] (orch.south) ++(0, -13.2) -- ++(-7.5, 0)
+    node[midway, above, font=\tiny] {16: UpdatePlannedFinish()};
+
+% ============================================
+% LEGEND
+% ============================================
+
+\node[font=\scriptsize\bfseries] at (0, -15.2) {Legend:};
+
+\draw[sync] (1.5, -15.2) -- ++(1, 0);
+\node[anchor=west, font=\tiny] at (2.6, -15.2) {sync call};
+
+\draw[stream] (4.5, -15.2) -- ++(1, 0);
+\node[anchor=west, font=\tiny] at (5.6, -15.2) {stream (OnNext)};
+
+\draw[subscribe] (8, -15.2) -- ++(1, 0);
+\node[anchor=west, font=\tiny] at (9.1, -15.2) {subscribe};
+
+\draw[return] (11.5, -15.2) -- ++(1, 0);
+\node[anchor=west, font=\tiny] at (12.6, -15.2) {return};
+
+\end{tikzpicture}
+
+\caption{UML Sequence Diagram showing the temporal flow of the execution pipeline.
+The inner loop (blue) handles fast event propagation between Trigger, Coordinator, Agent, and Event Bus.
+The outer loop (teal) handles throttled rescheduling with a 500ms sample window.
+Orange dashed arrows represent Rx.NET stream emissions (\texttt{OnNext}), blue dashed arrows represent subscriptions.}
+\label{fig:execution-sequence}
+\end{figure*}
+
+% ============================================
+% SEQUENCE DIAGRAM EXPLANATION
+% ============================================
+
+\subsection{Sequence Diagram Analysis}
+
+The sequence diagram in Figure~\ref{fig:execution-sequence} illustrates the temporal ordering of messages in the execution pipeline.
+
+\subsubsection{Initialization Phase (Steps 1--2)}
+Before execution begins, the reactive subscriptions are established:
+\begin{enumerate}
+    \item \textbf{Trigger Service} subscribes to the Event Bus's \texttt{AllEvents} observable
+    \item \textbf{Execution Orchestrator} subscribes to the same observable
+\end{enumerate}
+These subscriptions remain active throughout the execution lifetime.
+
+\subsubsection{Inner Loop Execution (Steps 3--9)}
+The inner loop executes without throttling for fast event propagation:
+\begin{enumerate}
+    \setcounter{enumi}{2}
+    \item Trigger Service detects that prerequisites are met and calls \texttt{TriggerSkill()}
+    \item Coordinator calls \texttt{ExecuteSkillAsync()} on the Runtime Agent
+    \item Agent returns an \texttt{IObservable<Progress>} stream
+    \item On first progress, Coordinator pushes \texttt{Start} event via \texttt{OnNext}
+    \item Agent completes execution with \texttt{OnCompleted}
+    \item Coordinator pushes \texttt{Finish} event via \texttt{OnNext}
+    \item Event Bus emits to Trigger Service, potentially triggering next skill
+\end{enumerate}
+
+\subsubsection{Outer Loop Processing (Steps 10--16)}
+The outer loop handles state management and rescheduling with throttling:
+\begin{enumerate}
+    \setcounter{enumi}{9}
+    \item Event Bus emits to Orchestrator (same event, different subscriber)
+    \item Orchestrator calls State Transition Service to update execution state
+    \item After 500ms throttle window, Orchestrator calls \texttt{RescheduleAsync()}
+    \item Rescheduler queries State Manager for current execution states
+    \item Rescheduler returns updated schedule with new timing
+    \item Orchestrator broadcasts updated nodes to Frontend via GraphQL
+    \item For adaptive skills, Orchestrator updates planned finish times
+\end{enumerate}
+
+\subsubsection{Key Observations}
+
+\paragraph{Parallel Subscription}
+Both the Trigger Service and Orchestrator subscribe to the same Event Bus observable.
+When an event is emitted, \emph{both} receive it simultaneously, enabling:
+\begin{itemize}
+    \item Trigger Service to immediately check for next triggerable skills (fast)
+    \item Orchestrator to update state and schedule rescheduling (throttled)
+\end{itemize}
+
+\paragraph{Stream vs.\ Call Semantics}
+The diagram distinguishes between:
+\begin{itemize}
+    \item \textbf{Synchronous calls} (solid arrows): Traditional method invocations that block until completion
+    \item \textbf{Stream emissions} (orange dashed): Rx.NET \texttt{OnNext} calls that push data into observables
+    \item \textbf{Subscriptions} (blue dashed): Rx.NET \texttt{Subscribe} calls that establish reactive connections
+\end{itemize}
+
+\paragraph{Throttling Boundary}
+The 500ms \texttt{Sample} operator creates a clear boundary:
+\begin{itemize}
+    \item Events arriving within the window are coalesced
+    \item Only the most recent event triggers rescheduling
+    \item This prevents scheduler overload during rapid event sequences
+\end{itemize}

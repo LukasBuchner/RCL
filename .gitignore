@@ -1,0 +1,136 @@
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Claude
+.claude/
+*.claude
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend (Magnus) - Node.js
+Magnus/node_modules/
+Magnus/dist/
+Magnus/build/
+Magnus/.env
+Magnus/.env.local
+Magnus/.env.*.local
+Magnus/.cache/
+Magnus/.parcel-cache/
+Magnus/.next/
+Magnus/out/
+Magnus/.nuxt/
+Magnus/.vuepress/dist/
+Magnus/src/__generated__/
+Magnus/graphql.schema.json
+Magnus/possibleTypes.json
+
+# Backend (Freydis) - Node.js/Python
+Freydis/node_modules/
+Freydis/__pycache__/
+Freydis/*.pyc
+Freydis/*.pyo
+Freydis/*.pyd
+Freydis/.Python
+Freydis/env/
+Freydis/venv/
+Freydis/ENV/
+Freydis/dist/
+Freydis/build/
+Freydis/.env
+Freydis/*.egg-info/
+
+# Robot Controller (Erik)
+Erik/bin/
+Erik/obj/
+Erik/build/
+Erik/.env
+
+# Unity (Emma)
+Emma/[Ll]ibrary/
+Emma/[Tt]emp/
+Emma/[Oo]bj/
+Emma/[Bb]uild/
+Emma/[Bb]uilds/
+Emma/[Ll]ogs/
+Emma/[Uu]ser[Ss]ettings/
+Emma/[Mm]emoryCaptures/
+Emma/Assets/AssetStoreTools*
+Emma/*.pidb
+Emma/*.booproj
+Emma/*.svd
+Emma/*.pdb
+Emma/*.mdb
+Emma/*.opendb
+Emma/*.VC.db
+Emma/sysinfo.txt
+Emma/*.apk
+Emma/*.aab
+Emma/*.unitypackage
+Emma/*.app
+Emma/*.exe
+
+# Robot Application (Harald)
+Harald/bin/
+Harald/obj/
+Harald/build/
+Harald/.env
+Harald/node_modules/
+
+# General build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+!DigitalTwin/Assets/Libs/*.dll
+!FreeDyn/**/*.dll
+!FreeDyn/**/*.fds
+!FreeDyn/**/*.fdd
+*.exe
+*.out
+*.app
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+.~lock.*
+
+# Package managers
+package-lock.json
+yarn.lock
+Pipfile.lock
+# Frontend is built via `npm ci` in Docker/CI, so its lockfile must be tracked
+!Frontend/package-lock.json
+
+# Machine-specific configuration
+OptX/Python/config.yaml
+
+# Python - compiled and cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+/FreeDyn/EXTSUB_OptCtrl_KUKA_iiwa/.vs
+
+# Benchmark outputs
+**/BenchmarkDotNet.Artifacts/
+
+# Private certificates and keys
+**/*.pfx
+**/*.p12
+**/*.key

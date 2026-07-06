@@ -1,0 +1,52 @@
+schema {
+    query: Query
+}
+
+type Query {
+    skillById(id: UUID!): Skill
+}
+
+type Skill {
+    id: UUID!
+    name: String!
+    description: String!
+    properties: [Property!]!
+}
+
+type Property {
+    name: String!
+    direction: PropertyDirection!
+    value: PropertyValue!
+}
+
+enum PropertyDirection {
+    INPUT
+    OUTPUT
+    BIDIRECTIONAL
+}
+
+union PropertyValue = BooleanValue | NumberValue | StringValue | PositionValue
+
+type BooleanValue {
+    boolValue: Boolean!
+}
+
+type NumberValue {
+    numberValue: Float!
+}
+
+type StringValue {
+    stringValue: String!
+}
+
+type PositionValue {
+    positionValue: Position!
+}
+
+type Position {
+    x: Float!
+    y: Float!
+    z: Float!
+}
+
+scalar UUID

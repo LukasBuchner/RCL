@@ -1,0 +1,258 @@
+using FHOOE.Freydis.Application.Configuration;
+using FHOOE.Freydis.Application.Services.Scheduling.Pipeline;
+using FHOOE.Freydis.Application.Services.Common.Context;
+using FHOOE.Freydis.Application.Services.Common.Reactive;
+using FHOOE.Freydis.Application.Tests.TestUtilities;
+using FHOOE.Freydis.Domain;
+using FHOOE.Freydis.Domain.Entities.Procedure;
+using FHOOE.Freydis.Domain.Entities.Common;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Moq;
+using Task = System.Threading.Tasks.Task;
+
+namespace FHOOE.Freydis.Application.Tests.Services.Scheduling.Integration;
+
+/// <summary>
+///     Integration tests for RouterNode positioning during CRUD operations.
+///     Verifies that RouterNodes get proper Y positions calculated to avoid overlap.
+/// </summary>
+public class RouterNodePositioningIntegrationTests
+{
+    private readonly Mock<IDependencyEdgeRepository> _edgeRepository;
+    private readonly Mock<INodeRepository> _nodeRepository;
+    private readonly Mock<IProcedureContext> _procedureContext;
+    private readonly SchedulingConfiguration _schedulingConfig;
+    private readonly Guid _testProcedureId;
+
+    public RouterNodePositioningIntegrationTests()
+    {
+        _nodeRepository = new Mock<INodeRepository>();
+        _edgeRepository = new Mock<IDependencyEdgeRepository>();
+        _procedureContext = new Mock<IProcedureContext>();
+        _testProcedureId = Guid.NewGuid();
+
+        // Setup procedure context
+        _procedureContext.Setup(x => x.RequireCurrentProcedureId()).Returns(_testProcedureId);
+        _procedureContext.Setup(x => x.CurrentProcedureId).Returns(_testProcedureId);
+
+        // Use default positioning configuration
+        _schedulingConfig = new SchedulingConfiguration
+        {
+            Positioning = new PositioningConfiguration
+            {
+                BaseHeight = 50,
+                RouterDropdownHeight = 26,
+                SiblingSpacing = 60,
+                BaseYOffset = 50
+            }
+        };
+    }
+
+    /// <summary>
+    ///     Tests that when a RouterNode is created after an existing node, it gets positioned
+    ///     below the existing node without overlap.
+    /// </summary>
+    /// <remarks>
+    ///     Expected behavior:
+    ///     - SkillExecutionNode at Y=50 (BaseYOffset)
+    ///     - RouterNode should be at Y=160 (50 + 50 + 60) NOT at Y=0
+    ///     This test currently FAILS, demonstrating the bug where RouterNode is created
+    ///     at the frontend-provided Y=0 position instead of being recalculated.
+    /// </remarks>
+    [Fact]
+    public async Task CreateNodeAsync_RouterNodeAfterExistingNode_ShouldRecalculateYPosition()
+    {
+        // Arrange
+        var existingSkillNode = new SkillExecutionNode
+        {
+            Id = Guid.NewGuid(),
+            ProcedureId = _testProcedureId,
+            Position = new NodePosition { X = 0, Y = 50 }, // Already positioned
+            ParentId = null,
+            SkillExecutionTask = new SkillExecutionTask
+            {
+                Name = "Existing Node",
+                StartTime = 0,
+                Duration = 100,
+                Skill = new Skill
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "TestSkill",
+                    Description = "Test",
+                    Properties = new List<Property>(),
+                    AgentIds = new List<Guid> { Guid.NewGuid() }
+                },
+                AgentId = Guid.NewGuid()
+            }
+        };
+
+        var newRouterNode = new RouterNode
+        {
+            Id = Guid.NewGuid(),
+            ProcedureId = _testProcedureId,
+            Position = new NodePosition { X = 0, Y = 0 }, // Frontend sends Y=0
+            ParentId = null,
+            RouterTask = new RouterTask
+            {
+                Name = "Router",
+                StartTime = 100,
+                Duration = 200,
+                Selector = new SimpleVariableSelector { Expression = "test" },
+                Branches = new List<ConditionalBranch>
+                {
+                    new() { Name = "Branch1", Condition = "test == true", Priority = 1, TargetNodeId = null },
+                    new() { Name = "Default", Condition = null, Priority = 100, TargetNodeId = null }
+                }
+            }
+        };
+
+        // Setup repository to return existing node on GetByProcedureIdAsync
+        var existingNodes = new List<Node> { existingSkillNode };
+        _nodeRepository
+            .Setup(x => x.GetByProcedureIdAsync(_testProcedureId))
+            .ReturnsAsync(existingNodes);
+
+        _edgeRepository
+            .Setup(x => x.GetByProcedureIdAsync(_testProcedureId))
+            .ReturnsAsync(new List<DependencyEdge>());
+
+        // Setup CreateAsync to capture the node that's persisted after scheduling
+        Node? persistedNode = null;
+        _nodeRepository
+            .Setup(x => x.CreateAsync(It.IsAny<Node>()))
+            .ReturnsAsync((Node n) =>
+            {
+                persistedNode = n;
+                return n;
+            });
+
+        // Create the orchestrator (full integration)
+        var orchestrator = CreateCrudSchedulingOrchestrator();
+
+        // Act
+        var result = await orchestrator.CreateNodeAsync(newRouterNode);
+
+        // Assert - The created RouterNode should have Y position recalculated
+        // Expected: Y = 50 (existing node Y) + 50 (existing node height) + 60 (spacing) = 160
+        // Actual bug: Y = 0 (frontend-provided position not recalculated)
+        result.Position.Y.Should().BeGreaterThan(0,
+            "RouterNode should be positioned below the existing node, not at Y=0");
+
+        result.Position.Y.Should().Be(160,
+            "RouterNode should be at Y=160 (BaseYOffset:50 + SkillNode:50 + Spacing:60)");
+
+        // Also verify the persisted node has correct position
+        persistedNode.Should().NotBeNull();
+        if (persistedNode != null)
+            persistedNode.Position.Y.Should().Be(160,
+                "Persisted RouterNode should have recalculated Y position");
+    }
+
+    /// <summary>
+    ///     Tests that multiple RouterNodes created sequentially don't overlap.
+    /// </summary>
+    [Fact]
+    public async Task CreateNodeAsync_MultipleRouterNodes_ShouldNotOverlap()
+    {
+        // Arrange
+        var firstRouter = new RouterNode
+        {
+            Id = Guid.NewGuid(),
+            ProcedureId = _testProcedureId,
+            Position = new NodePosition { X = 0, Y = 0 },
+            ParentId = null,
+            RouterTask = new RouterTask
+            {
+                Name = "Router1",
+                StartTime = 0,
+                Duration = 100,
+                Selector = new SimpleVariableSelector { Expression = "test1" },
+                Branches = new List<ConditionalBranch>
+                {
+                    new() { Name = "Default", Condition = null, Priority = 100, TargetNodeId = null }
+                }
+            }
+        };
+
+        var secondRouter = new RouterNode
+        {
+            Id = Guid.NewGuid(),
+            ProcedureId = _testProcedureId,
+            Position = new NodePosition { X = 0, Y = 0 }, // Frontend sends Y=0 again
+            ParentId = null,
+            RouterTask = new RouterTask
+            {
+                Name = "Router2",
+                StartTime = 100,
+                Duration = 100,
+                Selector = new SimpleVariableSelector { Expression = "test2" },
+                Branches = new List<ConditionalBranch>
+                {
+                    new() { Name = "Default", Condition = null, Priority = 100, TargetNodeId = null }
+                }
+            }
+        };
+
+        // Setup repositories
+        var nodes = new List<Node>();
+        _nodeRepository
+            .Setup(x => x.GetByProcedureIdAsync(_testProcedureId))
+            .ReturnsAsync(() => nodes.ToList());
+
+        _edgeRepository
+            .Setup(x => x.GetByProcedureIdAsync(_testProcedureId))
+            .ReturnsAsync(new List<DependencyEdge>());
+
+        _nodeRepository
+            .Setup(x => x.CreateAsync(It.IsAny<Node>()))
+            .ReturnsAsync((Node n) =>
+            {
+                nodes.Add(n);
+                return n;
+            });
+
+        var orchestrator = CreateCrudSchedulingOrchestrator();
+
+        // Act
+        var result1 = await orchestrator.CreateNodeAsync(firstRouter);
+        var result2 = await orchestrator.CreateNodeAsync(secondRouter);
+
+        // Assert
+        result1.Position.Y.Should().Be(50, "First RouterNode at BaseYOffset");
+
+        // Second router: 50 (first Y) + 76 (first RouterNode height with dropdown) + 60 (spacing) = 186
+        result2.Position.Y.Should().Be(186,
+            "Second RouterNode should be positioned below first RouterNode with 76px height (50 base + 26 dropdown)");
+
+        // Verify they don't overlap
+        var firstBottom = result1.Position.Y + 76; // RouterNode height
+        result2.Position.Y.Should().BeGreaterThanOrEqualTo(firstBottom,
+            "Second RouterNode should start after first RouterNode ends");
+    }
+
+    private CrudSchedulingOrchestrator CreateCrudSchedulingOrchestrator()
+    {
+        var testServices = TestServiceConfiguration.Create(
+            _schedulingConfig,
+            _nodeRepository.Object,
+            _edgeRepository.Object,
+            _procedureContext.Object
+        );
+
+        var logger = new Mock<ILogger<CrudSchedulingOrchestrator>>();
+        var nodeChangeTracker = new Mock<INodeChangeTracker>();
+        var edgeChangeTracker = new Mock<IDependencyEdgeChangeTracker>();
+
+        return new CrudSchedulingOrchestrator(
+            _nodeRepository.Object,
+            _edgeRepository.Object,
+            testServices.TimingCalculationOrchestrator,
+            nodeChangeTracker.Object,
+            edgeChangeTracker.Object,
+            _procedureContext.Object,
+            testServices.ResultLogger,
+            logger.Object
+        );
+    }
+}

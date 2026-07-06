@@ -1,0 +1,177 @@
+using FHOOE.Freydis.Application.Services.Scheduling.Models;
+using FHOOE.Freydis.Application.Services.Scheduling.Pipeline;
+using FHOOE.Freydis.Application.Services.Scheduling.Support.Analytics;
+using Microsoft.Extensions.Logging;
+using Moq;
+
+namespace FHOOE.Freydis.Application.Tests.Services.Scheduling.Support.Analytics;
+
+/// <summary>
+/// Unit tests for SchedulingResultLogger service.
+/// </summary>
+public class SchedulingResultLoggerTests
+{
+    private readonly Mock<ILogger<SchedulingResultLogger>> _mockLogger;
+    private readonly SchedulingResultLogger _logger;
+
+    public SchedulingResultLoggerTests()
+    {
+        _mockLogger = new Mock<ILogger<SchedulingResultLogger>>();
+        _logger = new SchedulingResultLogger(_mockLogger.Object);
+    }
+
+    [Fact]
+    public void LogTimingResults_WithValidSchedules_LogsCorrectInformation()
+    {
+        // Arrange
+        var triggeredByEntityId = Guid.NewGuid();
+        var changeType = GraphChangeType.NodeAdded;
+        
+        var nodeSchedules = new List<NodeSchedule>
+        {
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 10.0, AbsoluteStartTime = 0.0, AbsoluteFinishTime = 10.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.SkillExecutionNode, Duration = 5.0, AbsoluteStartTime = 2.0, AbsoluteFinishTime = 7.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 8.0, AbsoluteStartTime = 5.0, AbsoluteFinishTime = 13.0 }
+        }.AsReadOnly();
+
+        // Act
+        _logger.LogTimingResults(triggeredByEntityId, changeType, nodeSchedules);
+
+        // Assert
+        // Verify that debug logging occurred (we can't easily assert exact log messages with Moq)
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Timing calculation completed")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public void LogTimingResults_WithEmptySchedules_LogsNoSchedulesMessage()
+    {
+        // Arrange
+        var triggeredByEntityId = Guid.NewGuid();
+        var changeType = GraphChangeType.NodeUpdated;
+        var emptySchedules = new List<NodeSchedule>().AsReadOnly();
+
+        // Act
+        _logger.LogTimingResults(triggeredByEntityId, changeType, emptySchedules);
+
+        // Assert
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("No node schedules returned")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public void LogTimingResults_WithCriticalPathCandidates_LogsCriticalPath()
+    {
+        // Arrange
+        var triggeredByEntityId = Guid.NewGuid();
+        var changeType = GraphChangeType.EdgeAdded;
+        
+        var nodeSchedules = new List<NodeSchedule>
+        {
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 10.0, AbsoluteStartTime = 0.0, AbsoluteFinishTime = 10.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.SkillExecutionNode, Duration = 10.0, AbsoluteStartTime = 0.0, AbsoluteFinishTime = 10.0 }, // Same finish time
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 8.0, AbsoluteStartTime = 0.0, AbsoluteFinishTime = 8.0 }
+        }.AsReadOnly();
+
+        // Act
+        _logger.LogTimingResults(triggeredByEntityId, changeType, nodeSchedules);
+
+        // Assert
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Critical Path Candidates")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public void LogTimingResults_WithMixedNodeTypes_LogsSeparateCountsCorrectly()
+    {
+        // Arrange
+        var triggeredByEntityId = Guid.NewGuid();
+        var changeType = GraphChangeType.NodeRemoved;
+        
+        var nodeSchedules = new List<NodeSchedule>
+        {
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 10.0, AbsoluteStartTime = 0.0, AbsoluteFinishTime = 10.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 8.0, AbsoluteStartTime = 2.0, AbsoluteFinishTime = 10.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.SkillExecutionNode, Duration = 5.0, AbsoluteStartTime = 1.0, AbsoluteFinishTime = 6.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.SkillExecutionNode, Duration = 3.0, AbsoluteStartTime = 4.0, AbsoluteFinishTime = 7.0 },
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.SkillExecutionNode, Duration = 6.0, AbsoluteStartTime = 0.0, AbsoluteFinishTime = 6.0 }
+        }.AsReadOnly();
+
+        // Act
+        _logger.LogTimingResults(triggeredByEntityId, changeType, nodeSchedules);
+
+        // Assert - Should log 2 tasks and 3 skills in the overview
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("2 tasks, 3 skills")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public void LogTimingResults_WithNullSchedules_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var triggeredByEntityId = Guid.NewGuid();
+        var changeType = GraphChangeType.NodeAdded;
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() =>
+            _logger.LogTimingResults(triggeredByEntityId, changeType, null!));
+    }
+
+    [Fact]
+    public void Constructor_WithNullLogger_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() =>
+            new SchedulingResultLogger(null!));
+    }
+
+    [Fact]
+    public void LogTimingResults_WithSingleSchedule_LogsCorrectStatistics()
+    {
+        // Arrange
+        var triggeredByEntityId = Guid.NewGuid();
+        var changeType = GraphChangeType.EdgeRemoved;
+        
+        var nodeSchedules = new List<NodeSchedule>
+        {
+            new() { NodeId = Guid.NewGuid(), NodeType = NodeScheduleType.TaskNode, Duration = 15.0, AbsoluteStartTime = 5.0, AbsoluteFinishTime = 20.0 }
+        }.AsReadOnly();
+
+        // Act
+        _logger.LogTimingResults(triggeredByEntityId, changeType, nodeSchedules);
+
+        // Assert - Should log total duration 15.0 and procedure span 15.0
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Total Duration: 15.00") && v.ToString().Contains("Procedure Span: 15.00")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+}
